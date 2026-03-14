@@ -1,0 +1,25 @@
+{
+  "menu": [
+    {
+      "url": "/",
+      "name": "Dashboard",
+      "icon": "menu-icon tf-icons ti ti-smart-home",
+      "slug": "dashboard",
+      "permission": "view-dashboard"
+    },
+    {
+      "url": "enquiries",
+      "name": "Enquiries",
+      "icon": "menu-icon tf-icons ti ti-file-text",
+      "slug": "enquiries",
+      "permission": "view-enquiries"
+    },
+    {
+      "url": "user-management/users",
+      "name": "Users",
+      "icon": "menu-icon tf-icons ti ti-users",
+      "slug": "user-management.users",
+      "permission": "view-users"
+    }
+  ]
+}

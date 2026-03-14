@@ -1,0 +1,61 @@
+{
+  "menu": [
+    {
+      "url": "/",
+      "name": "Dashboard",
+      "icon": "menu-icon tf-icons ti ti-smart-home",
+      "slug": "dashboard",
+      "permission": "view-dashboard"
+    },
+    {
+      "menuHeader": "Enquiry Management",
+      "permission": "view-enquiries"
+    },
+    {
+      "url": "enquiries",
+      "name": "Enquiries",
+      "icon": "menu-icon tf-icons ti ti-file-text",
+      "slug": "enquiries",
+      "permission": "view-enquiries",
+      "submenu": [
+        {
+          "url": "enquiries",
+          "name": "All Enquiries",
+          "slug": "enquiries.index",
+          "permission": "view-enquiries"
+        },
+        {
+          "url": "enquiries?view=cancelled",
+          "name": "Cancelled Enquiries",
+          "slug": "enquiries.cancelled",
+          "permission": "view-enquiries"
+        }
+      ]
+    },
+    {
+      "menuHeader": "User Management",
+      "permission": "manage-users"
+    },
+    {
+      "url": "user-management/users",
+      "name": "Users",
+      "icon": "menu-icon tf-icons ti ti-users",
+      "slug": "user-management.users",
+      "permission": "view-users",
+      "submenu": [
+        {
+          "url": "user-management/users",
+          "name": "All Users",
+          "slug": "user-management.users.index",
+          "permission": "view-users"
+        },
+        {
+          "url": "user-management/roles",
+          "name": "Roles & Permissions",
+          "slug": "user-management.roles.index",
+          "permission": "manage-roles"
+        }
+      ]
+    }
+  ]
+}
