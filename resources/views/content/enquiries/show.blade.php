@@ -103,6 +103,15 @@ $configData = Helper::appClasses();
           </div>
         </div>
         @endif
+
+        @if($enquiry->follow_up_remark)
+        <div class="row mb-3">
+          <div class="col-md-12">
+            <strong>Follow-up Remark:</strong>
+            <p class="mb-0">{{ $enquiry->follow_up_remark }}</p>
+          </div>
+        </div>
+        @endif
       </div>
     </div>
   </div>

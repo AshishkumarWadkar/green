@@ -1,0 +1,195 @@
+BASE_URL="http://127.0.0.1:8000"
+TOKEN="YOUR_ACCESS_TOKEN"
+
+========================================
+AUTH APIS
+========================================
+
+# 1) Login
+curl --location "$BASE_URL/api/mobile/auth/login" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data '{
+  "username": "your_username",
+  "password": "your_password",
+  "device_name": "android-app"
+}'
+
+# 2) Me (current user profile)
+curl --location "$BASE_URL/api/mobile/auth/me" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 3) Logout current token
+curl --location "$BASE_URL/api/mobile/auth/logout" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN" \
+--request POST
+
+# 4) Logout all devices
+curl --location "$BASE_URL/api/mobile/auth/logout-all" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN" \
+--request POST
+
+========================================
+USER MANAGEMENT APIS
+========================================
+
+# 5) List users
+curl --location "$BASE_URL/api/mobile/user-management/users?page=1&per_page=15&search=" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 6) Get assignable roles
+curl --location "$BASE_URL/api/mobile/user-management/users/assignable-roles" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 7) Show one user
+curl --location "$BASE_URL/api/mobile/user-management/users/1" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 8) Create user
+curl --location "$BASE_URL/api/mobile/user-management/users" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN" \
+--header "Content-Type: application/json" \
+--data '{
+  "name": "Test User",
+  "username": "testuser01",
+  "password": "Password@123",
+  "password_confirmation": "Password@123",
+  "roles": [1],
+  "is_active": true
+}'
+
+# 9) Update user
+curl --location "$BASE_URL/api/mobile/user-management/users/1" \
+--request PUT \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN" \
+--header "Content-Type: application/json" \
+--data '{
+  "name": "Test User Updated",
+  "username": "testuser01",
+  "password": "",
+  "password_confirmation": "",
+  "roles": [1],
+  "is_active": true
+}'
+
+# 10) Toggle user status
+curl --location "$BASE_URL/api/mobile/user-management/users/1/toggle-status" \
+--request PATCH \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 11) Delete user
+curl --location "$BASE_URL/api/mobile/user-management/users/1" \
+--request DELETE \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+========================================
+ENQUIRY APIS
+========================================
+
+# 12) List enquiries (with optional filters)
+curl --location "$BASE_URL/api/mobile/enquiries?page=1&per_page=15&date_from=&date_to=&source_id=&assigned_to=&lead_type=&location=&pincode=&enquiry_type=&finance_type=&customer_profession=&status=&view=all" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 13) Filter options (all at once)
+curl --location "$BASE_URL/api/mobile/enquiries/filters" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 14) Filter options by type
+curl --location "$BASE_URL/api/mobile/enquiries/filters?type=sources" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# Supported types:
+# sources, assigned_users, lead_types, locations, pincodes,
+# enquiry_types, finance_types, customer_professions, statuses
+
+# 15) Show one enquiry
+curl --location "$BASE_URL/api/mobile/enquiries/1" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# 16) Create enquiry
+curl --location "$BASE_URL/api/mobile/enquiries" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN" \
+--header "Content-Type: application/json" \
+--data '{
+  "enquiry_date": "2026-04-16",
+  "customer_name": "Ravi Kumar",
+  "mobile_number": "9876543210",
+  "alternate_mobile": "",
+  "email": "ravi@example.com",
+  "location": "Pune",
+  "pincode": "411001",
+  "enquiry_source_id": 1,
+  "product_service": "Solar Rooftop",
+  "enquiry_type": "Residential",
+  "assigned_to": 2,
+  "initial_remark": "Interested in 5KW setup",
+  "next_follow_up_date": "2026-04-20",
+  "capacity_kw": 5,
+  "finance_type": "Cash",
+  "shadow_free_area_sqft": 450,
+  "customer_profession": "Engineer",
+  "consumer_number": "CON12345",
+  "lead_type": "Hot",
+  "status": "Pending"
+}'
+
+# 17) Update enquiry
+curl --location "$BASE_URL/api/mobile/enquiries/1" \
+--request PUT \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN" \
+--header "Content-Type: application/json" \
+--data '{
+  "enquiry_date": "2026-04-16",
+  "customer_name": "Ravi Kumar Updated",
+  "mobile_number": "9876543210",
+  "alternate_mobile": "",
+  "email": "ravi@example.com",
+  "location": "Pune",
+  "pincode": "411001",
+  "enquiry_source_id": 1,
+  "product_service": "Solar Rooftop",
+  "enquiry_type": "Residential",
+  "assigned_to": 2,
+  "initial_remark": "Please call in evening",
+  "next_follow_up_date": "2026-04-21",
+  "capacity_kw": 6,
+  "finance_type": "EMI",
+  "shadow_free_area_sqft": 500,
+  "customer_profession": "Engineer",
+  "consumer_number": "CON12345",
+  "lead_type": "Warm",
+  "status": "Accepted"
+}'
+
+# 18) Update enquiry status
+curl --location "$BASE_URL/api/mobile/enquiries/1/status" \
+--request PATCH \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN" \
+--header "Content-Type: application/json" \
+--data '{
+  "status": "Cancelled",
+  "follow_up_remark": "Customer postponed the plan."
+}'
+
+# 19) Delete enquiry
+curl --location "$BASE_URL/api/mobile/enquiries/1" \
+--request DELETE \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"

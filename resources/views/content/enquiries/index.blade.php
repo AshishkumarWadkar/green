@@ -24,9 +24,9 @@ $configData = Helper::appClasses();
     <h5 class="card-title mb-0">{{ $viewStatus === 'cancelled' ? 'Cancelled Enquiries' : 'All Enquiries' }}</h5>
     <div class="d-flex align-items-center gap-2">
       @can('create-enquiries')
-      <a href="{{ route('enquiries.create') }}" class="btn btn-primary btn-sm">
+      <button type="button" class="btn btn-primary btn-sm" id="openAddEnquiryModal">
         <i class="ti ti-plus me-1"></i> Add New Enquiry
-      </a>
+      </button>
       @endcan
       <button class="btn btn-label-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFilter" aria-expanded="false" aria-controls="collapseFilter">
         <i class="ti ti-filter me-1"></i> Filters <i class="ti ti-chevron-down ms-1"></i>
@@ -74,6 +74,52 @@ $configData = Helper::appClasses();
             @endforeach
           </select>
         </div>
+        <div class="col-md-2">
+          <label class="form-label">Location</label>
+          <select class="form-select select2" id="filter_location" name="location">
+            <option value="">All Locations</option>
+            @foreach($locations as $location)
+              <option value="{{ $location }}">{{ $location }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Pincode</label>
+          <select class="form-select select2" id="filter_pincode" name="pincode">
+            <option value="">All Pincodes</option>
+            @foreach($pincodes as $pincode)
+              <option value="{{ $pincode }}">{{ $pincode }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Enquiry Type</label>
+          <select class="form-select select2" id="filter_enquiry_type" name="enquiry_type">
+            <option value="">All Types</option>
+            <option value="Residential">Residential</option>
+            <option value="Industrial">Industrial</option>
+            <option value="Commercial">Commercial</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Finance Type</label>
+          <select class="form-select select2" id="filter_finance_type" name="finance_type">
+            <option value="">All Finance Types</option>
+            <option value="Credit">Credit</option>
+            <option value="Cash">Cash</option>
+            <option value="EMI">EMI</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Profession</label>
+          <select class="form-select select2" id="filter_customer_profession" name="customer_profession">
+            <option value="">All Professions</option>
+            @foreach($professions as $profession)
+              <option value="{{ $profession->name }}">{{ $profession->name }}</option>
+            @endforeach
+          </select>
+        </div>
         @if($viewStatus !== 'cancelled')
         <div class="col-md-2">
           <label class="form-label">Status</label>
@@ -87,9 +133,6 @@ $configData = Helper::appClasses();
         @endif
         <div class="col-md-12">
           <input type="hidden" name="view" id="view_status" value="{{ $viewStatus }}">
-          <button type="button" class="btn btn-primary" id="applyFilters">
-            <i class="ti ti-filter me-1"></i> Apply Filters
-          </button>
           <button type="button" class="btn btn-label-secondary" id="resetFilters">
             <i class="ti ti-refresh me-1"></i> Reset
           </button>
@@ -121,80 +164,69 @@ $configData = Helper::appClasses();
   </div>
 </div>
 
-<!-- Offcanvas to edit enquiry -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasEditEnquiry" aria-labelledby="offcanvasEditEnquiryLabel">
-  <div class="offcanvas-header">
-    <h5 id="offcanvasEditEnquiryLabel" class="offcanvas-title">Edit Enquiry</h5>
-    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+<!-- Follow-up Action Modal -->
+<div class="modal fade" id="followUpActionModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="followUpActionModalTitle">Update Enquiry Status</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="followUpActionForm">
+        <div class="modal-body">
+          <input type="hidden" id="follow_up_enquiry_id" name="enquiry_id">
+          <input type="hidden" id="follow_up_status" name="status">
+
+          <div class="mb-3">
+            <label class="form-label">Selected Action</label>
+            <input type="text" class="form-control" id="follow_up_status_label" readonly>
+          </div>
+
+          <div class="mb-0">
+            <label for="follow_up_remark" class="form-label">Follow-up Remark <span class="text-danger">*</span></label>
+            <textarea
+              class="form-control"
+              id="follow_up_remark"
+              name="follow_up_remark"
+              rows="4"
+              placeholder="Enter follow-up remark"
+              required
+            ></textarea>
+            <small class="text-muted">Remark is required for every follow-up action.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="submitFollowUpAction">Save</button>
+        </div>
+      </form>
+    </div>
   </div>
-  <div class="offcanvas-body mx-0 flex-grow-0">
-    <form class="edit-enquiry pt-0" id="editEnquiryForm">
-      <input type="hidden" id="enquiry_id" name="id">
-      <div class="mb-3">
-        <label for="enquiry_date" class="form-label">Enquiry Date <span class="text-danger">*</span></label>
-        <input type="text" class="form-control flatpickr" id="enquiry_date" name="enquiry_date" placeholder="Select date" />
+</div>
+
+<!-- Add/Edit Enquiry Modal -->
+<div class="modal fade" id="enquiryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="enquiryModalTitle">Add New Enquiry</h5>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <button type="button" class="btn btn-sm btn-primary d-none" id="enableEditBtn">
+            <i class="ti ti-edit me-1"></i>Edit
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
       </div>
-      <div class="mb-3">
-        <label for="customer_name" class="form-label">Customer Name <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="customer_name" name="customer_name" placeholder="Enter customer name" />
+      <div class="modal-body">
+        <form id="enquiryModalForm">
+          @include('content.enquiries.partials.form-fields')
+        </form>
       </div>
-      <div class="mb-3">
-        <label for="mobile_number" class="form-label">Mobile Number <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="mobile_number" name="mobile_number" placeholder="Enter mobile number" />
+      <div class="modal-footer">
+        <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="enquiryModalSubmitBtn" form="enquiryModalForm">Save Enquiry</button>
       </div>
-      <div class="mb-3">
-        <label for="alternate_mobile" class="form-label">Alternate Mobile</label>
-        <input type="text" class="form-control" id="alternate_mobile" name="alternate_mobile" placeholder="Enter alternate mobile" />
-      </div>
-      <div class="mb-3">
-        <label for="email" class="form-label">Email</label>
-        <input type="email" class="form-control" id="email" name="email" placeholder="Enter email" />
-      </div>
-      <div class="mb-3">
-        <label for="enquiry_source_id" class="form-label">Source <span class="text-danger">*</span></label>
-        <select class="form-select select2" id="enquiry_source_id" name="enquiry_source_id">
-          <option value="">Select source</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label for="product_service" class="form-label">Product / Service</label>
-        <input type="text" class="form-control" id="product_service" name="product_service" placeholder="Enter product/service" />
-      </div>
-      <div class="mb-3">
-        <label for="assigned_to_readonly" class="form-label">Assigned To <span class="text-danger">*</span></label>
-        @if(auth()->user()->hasRole('Sales'))
-        <input type="text" class="form-control" id="assigned_to_readonly" value="{{ auth()->user()->name }}" readonly>
-        <input type="hidden" name="assigned_to" id="assigned_to" value="{{ auth()->id() }}">
-        @else
-        <select class="form-select select2" id="assigned_to" name="assigned_to">
-          <option value="">Select user</option>
-        </select>
-        @endif
-      </div>
-      <div class="mb-3">
-        <label for="lead_type" class="form-label">Lead Type <span class="text-danger">*</span></label>
-        <select class="form-select select2" id="lead_type" name="lead_type">
-          <option value="">Select lead type</option>
-          <option value="Hot">Hot</option>
-          <option value="Cold">Cold</option>
-          <option value="Warm">Warm</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label for="status" class="form-label">Status <span class="text-danger">*</span></label>
-        <select class="form-select select2" id="status" name="status">
-          <option value="Pending">Pending</option>
-          <option value="Accepted">Accepted</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label for="initial_remark" class="form-label">Initial Remark</label>
-        <textarea class="form-control" id="initial_remark" name="initial_remark" rows="3" placeholder="Enter remark"></textarea>
-      </div>
-      <button type="submit" class="btn btn-primary me-sm-3 me-1 data-submit">Update</button>
-      <button type="reset" class="btn btn-label-secondary" data-bs-dismiss="offcanvas">Cancel</button>
-    </form>
+    </div>
   </div>
 </div>
 @endsection
@@ -218,6 +250,7 @@ $configData = Helper::appClasses();
   window.enquiryConfig = {
     sources: @json($sources),
     users: @json($users),
+    professions: @json($professions),
     leadTypes: @json($leadTypes),
     viewStatus: '{{ $viewStatus }}'
   };

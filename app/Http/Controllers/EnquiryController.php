@@ -2,97 +2,58 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CustomerProfession;
 use App\Models\Enquiry;
 use App\Models\EnquirySource;
-use App\Models\User;
+use App\Services\EnquiryManagement\EnquiryManagementService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\Facades\DataTables;
-use Illuminate\Support\Facades\DB;
 
 class EnquiryController extends Controller
 {
+    public function __construct(private readonly EnquiryManagementService $enquiryManagementService)
+    {
+    }
+
     protected function getUsersForEnquiryList()
     {
-        $user = auth()->user();
-        if ($user->hasRole('Sales')) {
-            return User::where('id', $user->id)->get();
-        }
-        return User::whereHas('roles', fn($q) => $q->where('name', 'Sales'))->get();
+        return $this->enquiryManagementService->getUsersForEnquiryList(auth()->user());
     }
 
     protected function getAssignableSalesReps()
     {
-        $user = auth()->user();
-        if ($user->hasRole('Sales')) {
-            return collect([$user]);
-        }
-        return User::whereHas('roles', fn($q) => $q->where('name', 'Sales'))->get();
+        return $this->enquiryManagementService->getAssignableSalesReps(auth()->user());
     }
 
     protected function userCanAccessEnquiry(Enquiry $enquiry): bool
     {
-        $user = auth()->user();
-        if ($user->hasRole('Sales')) {
-            return $enquiry->assigned_to === $user->id;
+        try {
+            $this->enquiryManagementService->ensureUserCanAccessEnquiry(auth()->user(), $enquiry);
+            return true;
+        } catch (\DomainException $e) {
+            return false;
         }
-        return true; 
     }
 
     public function index(Request $request)
     {
-        $sources = EnquirySource::where('is_active', true)->orderBy('sort_order')->get();
-        $users = $this->getUsersForEnquiryList();
-        
-        $leadTypes = [
-            (object)['id' => 'Hot', 'name' => 'Hot'],
-            (object)['id' => 'Cold', 'name' => 'Cold'],
-            (object)['id' => 'Warm', 'name' => 'Warm'],
-        ];
+        $filterOptions = $this->enquiryManagementService->getFilterOptions(auth()->user());
+        $sources = $filterOptions['sources'];
+        $users = $filterOptions['assigned_users'];
+        $professions = $filterOptions['customer_professions'];
+        $locations = $filterOptions['locations'];
+        $pincodes = $filterOptions['pincodes'];
+        $leadTypes = collect($filterOptions['lead_types'])->map(fn ($item) => (object) $item)->all();
 
         $viewStatus = $request->get('view', 'all'); // 'all' or 'cancelled'
 
-        return view('content.enquiries.index', compact('sources', 'leadTypes', 'users', 'viewStatus'));
+        return view('content.enquiries.index', compact('sources', 'leadTypes', 'users', 'professions', 'locations', 'pincodes', 'viewStatus'));
     }
 
     public function getData(Request $request)
     {
-        $query = Enquiry::with(['enquirySource', 'assignedUser', 'createdBy']);
-
-        if ($request->filled('date_from')) {
-            $query->where('enquiry_date', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->where('enquiry_date', '<=', $request->date_to);
-        }
-        if ($request->filled('source_id')) {
-            $query->where('enquiry_source_id', $request->source_id);
-        }
-        if ($request->filled('assigned_to')) {
-            $query->where('assigned_to', $request->assigned_to);
-        }
-        if ($request->filled('lead_type')) {
-            $query->where('lead_type', $request->lead_type);
-        }
-        
-        if ($request->get('view') === 'cancelled') {
-            $query->where('status', 'Cancelled');
-        } else {
-            // For 'all' view, user might mean both or just accepted. 
-            // Usually 'All' means everything but 'Cancelled' is often separate.
-            // But let's allow 'all' to show both and use a separate filter if needed.
-            // Actually user said "All Enquiries" and "Cancelled Enquiries" as separate menus.
-            // So "All" should probably show everything EXCEPT cancelled, or EVERYTHING.
-            // Let's go with All = EVERYTHING, and Cancelled = only cancelled.
-            if ($request->filled('status')) {
-                $query->where('status', $request->status);
-            }
-        }
-
-        $authUser = auth()->user();
-        if ($authUser->hasRole('Sales')) {
-            $query->where('assigned_to', $authUser->id);
-        }
+        $query = $this->enquiryManagementService->getEnquiryListingQuery(auth()->user(), $request->all());
 
         $start = $request->get('start', 0);
 
@@ -146,11 +107,9 @@ class EnquiryController extends Controller
                 $canEdit = $canAccess && $user->can('edit-enquiries');
                 $canDelete = $canAccess && $user->can('delete-enquiries');
 
-                $viewBtn = '<a href="' . route('enquiries.show', $row->id) . '" class="btn btn-sm btn-icon btn-text-secondary rounded-pill waves-effect"><i class="ti ti-eye"></i></a>';
+                $viewBtn = '<button class="btn btn-sm btn-icon view-record btn-text-secondary rounded-pill waves-effect" data-id="' . $row->id . '" data-can-edit="' . ($canEdit ? 1 : 0) . '" title="View"><i class="ti ti-eye"></i></button>';
 
-                $editBtn = $canEdit
-                    ? '<button class="btn btn-sm btn-icon edit-record btn-text-secondary rounded-pill waves-effect" data-id="' . $row->id . '"><i class="ti ti-edit"></i></button>'
-                    : '';
+                $editBtn = '';
                 
                 $deleteBtn = $canDelete
                     ? '<button class="btn btn-sm btn-icon delete-record btn-text-secondary rounded-pill waves-effect" data-id="' . $row->id . '"><i class="ti ti-trash"></i></button>'
@@ -172,76 +131,35 @@ class EnquiryController extends Controller
     {
         $sources = EnquirySource::where('is_active', true)->orderBy('sort_order')->get();
         $users = $this->getAssignableSalesReps();
-        return view('content.enquiries.create', compact('sources', 'users'));
+        $professions = CustomerProfession::where('is_active', true)->orderBy('sort_order')->get();
+        return view('content.enquiries.create', compact('sources', 'users', 'professions'));
     }
 
     public function store(Request $request)
     {
-        $rules = [
-            'enquiry_date' => 'required|date',
-            'customer_name' => 'required|string|max:255',
-            'mobile_number' => 'required|string|max:20',
-            'alternate_mobile' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'enquiry_source_id' => 'required|exists:enquiry_sources,id',
-            'product_service' => 'nullable|string|max:255',
-            'initial_remark' => 'nullable|string',
-            'lead_type' => 'required|in:Hot,Cold,Warm',
-            'status' => 'required|in:Pending,Accepted,Cancelled',
-        ];
-
-        $authUser = auth()->user();
-        if (!$authUser->hasRole('Sales')) {
-            $rules['assigned_to'] = 'required|exists:users,id';
-        }
-
-        $validator = Validator::make($request->all(), $rules);
-
-        if ($validator->fails()) {
+        try {
+            $enquiry = $this->enquiryManagementService->createEnquiry(auth()->user(), $request->all());
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $e->errors(),
             ], 422);
-        }
-
-        DB::beginTransaction();
-        try {
-            $assignedTo = $authUser->hasRole('Sales') ? $authUser->id : $request->assigned_to;
-
-            $enquiry = Enquiry::create([
-                'enquiry_date' => $request->enquiry_date,
-                'customer_name' => $request->customer_name,
-                'mobile_number' => $request->mobile_number,
-                'alternate_mobile' => $request->alternate_mobile,
-                'email' => $request->email,
-                'enquiry_source_id' => $request->enquiry_source_id,
-                'product_service' => $request->product_service,
-                'assigned_to' => $assignedTo,
-                'initial_remark' => $request->initial_remark,
-                'lead_type' => $request->lead_type,
-                'status' => 'Pending', // Force Pending on creation per requirement
-                'created_by' => $authUser->id,
-                'updated_by' => $authUser->id,
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Enquiry created successfully.',
-                'data' => [
-                    'id' => $enquiry->id,
-                    'redirect' => route('enquiries.index')
-                ]
-            ]);
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Error creating enquiry: ' . $e->getMessage()
             ], 500);
         }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Enquiry created successfully.',
+            'data' => [
+                'id' => $enquiry->id,
+                'redirect' => route('enquiries.index')
+            ]
+        ]);
     }
 
     public function show($id)
@@ -284,6 +202,7 @@ class EnquiryController extends Controller
 
         $enquiryData = $enquiry->toArray();
         $enquiryData['enquiry_date'] = $enquiry->enquiry_date->format('Y-m-d');
+        $enquiryData['next_follow_up_date'] = $enquiry->next_follow_up_date ? $enquiry->next_follow_up_date->format('Y-m-d') : null;
 
         return response()->json([
             'success' => true,
@@ -323,53 +242,15 @@ class EnquiryController extends Controller
             ], 403);
         }
 
-        $rules = [
-            'enquiry_date' => 'required|date',
-            'customer_name' => 'required|string|max:255',
-            'mobile_number' => 'required|string|max:20',
-            'alternate_mobile' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
-            'enquiry_source_id' => 'required|exists:enquiry_sources,id',
-            'product_service' => 'nullable|string|max:255',
-            'initial_remark' => 'nullable|string',
-            'lead_type' => 'required|in:Hot,Cold,Warm',
-            'status' => 'required|in:Pending,Accepted,Cancelled',
-        ];
-
-        $authUser = auth()->user();
-        if (!$authUser->hasRole('Sales')) {
-            $rules['assigned_to'] = 'required|exists:users,id';
-        }
-
-        $validator = Validator::make($request->all(), $rules);
-
-        if ($validator->fails()) {
+        try {
+            $this->enquiryManagementService->updateEnquiry(auth()->user(), $enquiry, $request->all());
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $e->errors(),
             ], 422);
         }
-
-        $data = [
-            'enquiry_date' => $request->enquiry_date,
-            'customer_name' => $request->customer_name,
-            'mobile_number' => $request->mobile_number,
-            'alternate_mobile' => $request->alternate_mobile,
-            'email' => $request->email,
-            'enquiry_source_id' => $request->enquiry_source_id,
-            'product_service' => $request->product_service,
-            'initial_remark' => $request->initial_remark,
-            'lead_type' => $request->lead_type,
-            'status' => $request->status,
-            'updated_by' => $authUser->id,
-        ];
-
-        if (!$authUser->hasRole('Sales')) {
-            $data['assigned_to'] = $request->assigned_to;
-        }
-
-        $enquiry->update($data);
 
         return response()->json([
             'success' => true,
@@ -395,7 +276,7 @@ class EnquiryController extends Controller
             ], 403);
         }
 
-        $enquiry->delete();
+        $this->enquiryManagementService->deleteEnquiry(auth()->user(), $enquiry);
 
         return response()->json([
             'success' => true,
@@ -421,21 +302,15 @@ class EnquiryController extends Controller
             ], 403);
         }
 
-        $validator = Validator::make($request->all(), [
-            'status' => 'required|in:Accepted,Cancelled,Pending'
-        ]);
-
-        if ($validator->fails()) {
+        try {
+            $this->enquiryManagementService->updateEnquiryStatus(auth()->user(), $enquiry, $request->all());
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid status'
+                'message' => 'Invalid status',
+                'errors' => $e->errors(),
             ], 422);
         }
-
-        $enquiry->update([
-            'status' => $request->status,
-            'updated_by' => auth()->id()
-        ]);
 
         return response()->json([
             'success' => true,

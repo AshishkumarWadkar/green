@@ -3,25 +3,25 @@
 namespace App\Http\Controllers\UserManagement;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Services\UserManagement\UserManagementService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use Spatie\Permission\Models\Role;
+use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\Facades\DataTables;
-use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
+    public function __construct(private readonly UserManagementService $userManagementService)
+    {
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
         $this->authorize('view-users');
-        
-        $currentUser = auth()->user()->loadMissing('roles');
-        $roles = $this->getAssignableRolesForUser($currentUser);
+        $currentUser = auth()->user();
+        $roles = $this->userManagementService->getAssignableRolesForUser($currentUser);
 
         return view('content.user-management.users.index', compact('roles'));
     }
@@ -33,7 +33,7 @@ class UserController extends Controller
     {
         $this->authorize('view-users');
         
-        $query = User::with('roles');
+        $query = $this->userManagementService->getUserListingQuery();
         $start = $request->get('start', 0);
 
         return DataTables::of($query)
@@ -46,8 +46,8 @@ class UserController extends Controller
             ->editColumn('name', function ($row) {
                 return '<span class="text-heading fw-medium">' . $row->name . '</span>';
             })
-            ->editColumn('email', function ($row) {
-                return '<span class="text-muted">' . $row->email . '</span>';
+            ->editColumn('username', function ($row) {
+                return '<span class="text-muted">' . $row->username . '</span>';
             })
             ->addColumn('roles', function ($row) {
                 $roles = $row->roles->pluck('name')->toArray();
@@ -77,7 +77,7 @@ class UserController extends Controller
                 $canDelete = auth()->user()->can('delete-users');
                 
                 $editBtn = $canEdit 
-                    ? '<button class="btn btn-sm btn-icon edit-record btn-text-secondary rounded-pill waves-effect" data-id="' . $row->id . '" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAddUser"><i class="ti ti-edit"></i></button>'
+                    ? '<button class="btn btn-sm btn-icon edit-record btn-text-secondary rounded-pill waves-effect" data-id="' . $row->id . '"><i class="ti ti-edit"></i></button>'
                     : '';
                 
                 $deleteBtn = $canDelete 
@@ -86,7 +86,7 @@ class UserController extends Controller
                 
                 return '<div class="d-flex align-items-center gap-50">' . $editBtn . $deleteBtn . '</div>';
             })
-            ->rawColumns(['name', 'email', 'roles', 'is_active', 'action'])
+            ->rawColumns(['name', 'username', 'roles', 'is_active', 'action'])
             ->make(true);
     }
 
@@ -97,49 +97,19 @@ class UserController extends Controller
     {
         $this->authorize('create-users');
         
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email',
-            'password' => 'required|string|min:8|confirmed',
-            'roles' => 'nullable|array',
-            'roles.*' => 'exists:roles,id',
-            'is_active' => 'nullable|boolean'
-        ]);
-
-        if ($validator->fails()) {
+        try {
+            $this->userManagementService->createUser(auth()->user(), $request->all());
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $e->errors(),
             ], 422);
-        }
-
-        $currentUser = auth()->user()->loadMissing('roles');
-        $assignableRoleIds = $this->getAssignableRoleIdsForUser($currentUser);
-
-        if ($request->has('roles') && is_array($request->roles)) {
-            $requestedRoleIds = array_map('intval', $request->roles);
-            $invalidRoleIds = array_diff($requestedRoleIds, $assignableRoleIds);
-
-            if (!empty($invalidRoleIds)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You are not allowed to assign one or more of the selected roles.',
-                ], 403);
-            }
-        }
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'is_active' => $request->has('is_active') ? (bool)$request->is_active : true,
-        ]);
-
-        // Assign roles
-        if ($request->has('roles') && is_array($request->roles)) {
-            $roles = Role::whereIn('id', $request->roles)->get();
-            $user->syncRoles($roles);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 403);
         }
 
         return response()->json([
@@ -156,11 +126,7 @@ class UserController extends Controller
         $this->authorize('edit-users');
         
         $user = User::with('roles')->findOrFail($id);
-
-        $currentUser = auth()->user()->loadMissing('roles');
-        if (!$this->canManageUser($currentUser, $user)) {
-            abort(403, 'You are not allowed to manage users with a higher role than yours.');
-        }
+        $this->userManagementService->ensureCanManageUser(auth()->user(), $user);
 
         $user->role_ids = $user->roles->pluck('id')->toArray();
         
@@ -175,67 +141,20 @@ class UserController extends Controller
         $this->authorize('edit-users');
         
         $user = User::with('roles')->findOrFail($id);
-
-        $currentUser = auth()->user()->loadMissing('roles');
-        if (!$this->canManageUser($currentUser, $user)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You are not allowed to manage users with a higher role than yours.'
-            ], 403);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $id,
-            'password' => 'nullable|string|min:8|confirmed',
-            'roles' => 'nullable|array',
-            'roles.*' => 'exists:roles,id',
-            'is_active' => 'nullable|boolean'
-        ]);
-
-        if ($validator->fails()) {
+        
+        try {
+            $this->userManagementService->updateUser(auth()->user(), $user, $request->all());
+        } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $e->errors(),
             ], 422);
-        }
-
-        $assignableRoleIds = $this->getAssignableRoleIdsForUser($currentUser);
-
-        if ($request->has('roles') && is_array($request->roles)) {
-            $requestedRoleIds = array_map('intval', $request->roles);
-            $invalidRoleIds = array_diff($requestedRoleIds, $assignableRoleIds);
-
-            if (!empty($invalidRoleIds)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You are not allowed to assign one or more of the selected roles.',
-                ], 403);
-            }
-        }
-
-        $data = [
-            'name' => $request->name,
-            'email' => $request->email,
-        ];
-
-        if ($request->has('is_active')) {
-            $data['is_active'] = (bool)$request->is_active;
-        }
-
-        if ($request->filled('password')) {
-            $data['password'] = Hash::make($request->password);
-        }
-
-        $user->update($data);
-
-        // Sync roles
-        if ($request->has('roles') && is_array($request->roles)) {
-            $roles = Role::whereIn('id', $request->roles)->get();
-            $user->syncRoles($roles);
-        } else {
-            $user->syncRoles([]);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 403);
         }
 
         return response()->json([
@@ -251,27 +170,17 @@ class UserController extends Controller
     {
         $this->authorize('delete-users');
         
-        $user = User::findOrFail($id);
-
-        $currentUser = auth()->user()->loadMissing('roles');
-        $user->loadMissing('roles');
-
-        if (!$this->canManageUser($currentUser, $user)) {
+        $user = User::with('roles')->findOrFail($id);
+        
+        try {
+            $this->userManagementService->deleteUser(auth()->user(), $user);
+        } catch (\DomainException $e) {
+            $status = $e->getMessage() === 'You cannot delete your own account.' ? 422 : 403;
             return response()->json([
                 'success' => false,
-                'message' => 'You are not allowed to delete users with a higher role than yours.'
-            ], 403);
+                'message' => $e->getMessage(),
+            ], $status);
         }
-
-        // Prevent deleting yourself
-        if ($user->id === auth()->id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot delete your own account.'
-            ], 422);
-        }
-
-        $user->delete();
 
         return response()->json([
             'success' => true,
@@ -286,26 +195,17 @@ class UserController extends Controller
     {
         $this->authorize('edit-users');
         
-        $user = User::findOrFail($id);
-
-        $currentUser = auth()->user()->loadMissing('roles');
-        if (!$this->canManageUser($currentUser, $user)) {
+        $user = User::with('roles')->findOrFail($id);
+        
+        try {
+            $user = $this->userManagementService->toggleStatus(auth()->user(), $user);
+        } catch (\DomainException $e) {
+            $status = $e->getMessage() === 'You cannot change your own status.' ? 422 : 403;
             return response()->json([
                 'success' => false,
-                'message' => 'You are not allowed to manage this user.'
-            ], 403);
+                'message' => $e->getMessage(),
+            ], $status);
         }
-
-        // Prevent toggling yourself
-        if ($user->id === auth()->id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot change your own status.'
-            ], 422);
-        }
-
-        $user->is_active = !$user->is_active;
-        $user->save();
 
         return response()->json([
             'success' => true,
@@ -314,99 +214,4 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Determine if the given acting user can manage the target user
-     * based on role hierarchy.
-     */
-    private function canManageUser(User $actingUser, User $targetUser): bool
-    {
-        $actingDepth = $this->getUserHighestRoleDepth($actingUser);
-        $targetDepth = $this->getUserHighestRoleDepth($targetUser);
-
-        if ($actingDepth === null) {
-            return false;
-        }
-
-        if ($targetDepth === null) {
-            return true;
-        }
-
-        return $actingDepth <= $targetDepth;
-    }
-
-    /**
-     * Get the "depth" of the highest role for the given user.
-     * Lower depth means higher in the hierarchy.
-     */
-    private function getUserHighestRoleDepth(User $user): ?int
-    {
-        $roles = $user->roles->pluck('name')->toArray();
-
-        if (empty($roles)) {
-            return null;
-        }
-
-        $reportsToConfig = config('reporting.reports_to_role', []);
-        $depths = array_map(function ($roleName) use ($reportsToConfig) {
-            return $this->getRoleDepth($roleName, $reportsToConfig);
-        }, $roles);
-
-        return min($depths);
-    }
-
-    /**
-     * Compute depth of a role name within the hierarchy.
-     * Roles without a parent are considered top-level (depth 0).
-     */
-    private function getRoleDepth(string $roleName, array $reportsToConfig): int
-    {
-        static $cache = [];
-
-        if (isset($cache[$roleName])) {
-            return $cache[$roleName];
-        }
-
-        $depth = 0;
-        $current = $roleName;
-        $visited = [];
-
-        while (isset($reportsToConfig[$current]) && !in_array($current, $visited, true)) {
-            $visited[] = $current;
-            $current = $reportsToConfig[$current];
-            $depth++;
-        }
-
-        $cache[$roleName] = $depth;
-
-        return $depth;
-    }
-
-    /**
-     * Return the list of roles the given user is allowed to assign.
-     */
-    private function getAssignableRolesForUser(User $user)
-    {
-        $allRoles = Role::all();
-        $actingDepth = $this->getUserHighestRoleDepth($user);
-
-        if ($actingDepth === null) {
-            return collect([]);
-        }
-
-        $reportsToConfig = config('reporting.reports_to_role', []);
-
-        return $allRoles->filter(function (Role $role) use ($actingDepth, $reportsToConfig) {
-            $roleDepth = $this->getRoleDepth($role->name, $reportsToConfig);
-
-            return $actingDepth <= $roleDepth;
-        });
-    }
-
-    /**
-     * Get assignable role IDs for the given user.
-     */
-    private function getAssignableRoleIdsForUser(User $user): array
-    {
-        return $this->getAssignableRolesForUser($user)->pluck('id')->map('intval')->toArray();
-    }
 }

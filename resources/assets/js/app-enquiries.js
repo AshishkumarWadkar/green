@@ -6,9 +6,12 @@
 
 $(function () {
   var dt_enquiries_table = $('.datatables-enquiries'),
-    offCanvasForm = $('#offcanvasEditEnquiry'),
+    enquiryModal = $('#enquiryModal'),
+    enquiryModalForm = $('#enquiryModalForm'),
+    followUpActionModal = $('#followUpActionModal'),
+    followUpActionForm = $('#followUpActionForm'),
     select2 = $('.select2'),
-    flatpickr = $('.flatpickr');
+    flatpickrElements = $('.flatpickr');
 
   if (select2.length) {
     select2.each(function () {
@@ -23,8 +26,8 @@ $(function () {
     });
   }
 
-  if (flatpickr.length) {
-    flatpickr.flatpickr({
+  if (flatpickrElements.length) {
+    flatpickrElements.flatpickr({
       dateFormat: 'Y-m-d'
     });
   }
@@ -47,6 +50,11 @@ $(function () {
           d.source_id = $('#filter_source').val();
           d.assigned_to = $('#filter_assigned').val();
           d.lead_type = $('#filter_lead_type').val();
+          d.location = $('#filter_location').val();
+          d.pincode = $('#filter_pincode').val();
+          d.enquiry_type = $('#filter_enquiry_type').val();
+          d.finance_type = $('#filter_finance_type').val();
+          d.customer_profession = $('#filter_customer_profession').val();
           d.status = $('#filter_status').val();
           d.view = window.enquiryConfig.viewStatus;
         }
@@ -141,9 +149,135 @@ $(function () {
     });
   }
 
-  $('#applyFilters').on('click', function () {
-    dt_enquiries.draw();
-  });
+  function initModalPlugins() {
+    $('.modal-select2').each(function () {
+      var $this = $(this);
+      if ($this.hasClass('select2-hidden-accessible')) {
+        $this.select2('destroy');
+      }
+      $this.select2({
+        dropdownParent: enquiryModal,
+        width: '100%'
+      });
+    });
+
+    $('.flatpickr-modal').each(function () {
+      if (this._flatpickr) {
+        this._flatpickr.destroy();
+      }
+      var pickerOptions = {
+        altInput: true,
+        altFormat: 'd-m-Y',
+        dateFormat: 'Y-m-d'
+      };
+
+      this._flatpickr = flatpickrFactory(this, pickerOptions);
+    });
+
+    if (!window.modalMobileCleave) {
+      window.modalMobileCleave = new Cleave('#modal_mobile_number', {
+        phone: true,
+        phoneRegionCode: 'IN'
+      });
+    }
+    if (!window.modalAltMobileCleave) {
+      window.modalAltMobileCleave = new Cleave('#modal_alternate_mobile', {
+        phone: true,
+        phoneRegionCode: 'IN'
+      });
+    }
+
+    // Hard cap input lengths for numeric text fields.
+    $('#modal_mobile_number, #modal_alternate_mobile').off('input.maxDigits').on('input.maxDigits', function () {
+      const digits = $(this).val().replace(/\D/g, '').slice(0, 10);
+      $(this).val(digits);
+    });
+
+    $('#modal_pincode').off('input.maxDigits').on('input.maxDigits', function () {
+      const digits = $(this).val().replace(/\D/g, '').slice(0, 6);
+      $(this).val(digits);
+    });
+  }
+
+  function flatpickrFactory(element, options) {
+    return window.flatpickr(element, options);
+  }
+
+  function resetEnquiryModalForm() {
+    enquiryModalForm[0].reset();
+    if ($('#modal_enquiry_date')[0]?._flatpickr) {
+      $('#modal_enquiry_date')[0]._flatpickr.clear();
+    }
+    if ($('#modal_next_follow_up_date')[0]?._flatpickr) {
+      $('#modal_next_follow_up_date')[0]._flatpickr.clear();
+    }
+    $('#modal_enquiry_id').val('');
+    $('#modal_status').val('Pending');
+    $('.modal-select2').val(null).trigger('change');
+    $('#modal_status').val('Pending').trigger('change');
+    $('#enableEditBtn').addClass('d-none');
+    $('#enquiryModalSubmitBtn').removeClass('d-none');
+  }
+
+  function setEnquiryFormEditable(isEditable) {
+    $('#enquiryModalForm')
+      .find('input, textarea, select')
+      .not('#modal_enquiry_id')
+      .prop('disabled', !isEditable);
+
+    $('#enquiryModalSubmitBtn').toggleClass('d-none', !isEditable);
+  }
+
+  function openCreateEnquiryModal() {
+    $('#enquiryModalTitle').text('Add New Enquiry');
+    $('#enquiryModalSubmitBtn').text('Save Enquiry');
+    resetEnquiryModalForm();
+    if ($('#modal_enquiry_date')[0]?._flatpickr) {
+      $('#modal_enquiry_date')[0]._flatpickr.setDate(new Date(), true, 'Y-m-d');
+    } else {
+      $('#modal_enquiry_date').val(new Date().toISOString().slice(0, 10));
+    }
+    setEnquiryFormEditable(true);
+    enquiryModal.modal('show');
+  }
+
+  function fillEnquiryModal(data) {
+    $('#modal_enquiry_id').val(data.id || '');
+    if ($('#modal_enquiry_date')[0]?._flatpickr) {
+      $('#modal_enquiry_date')[0]._flatpickr.setDate(data.enquiry_date || null, true, 'Y-m-d');
+    } else {
+      $('#modal_enquiry_date').val(data.enquiry_date || '');
+    }
+    $('#modal_customer_name').val(data.customer_name || '');
+    $('#modal_mobile_number').val(data.mobile_number || '');
+    $('#modal_alternate_mobile').val(data.alternate_mobile || '');
+    $('#modal_email').val(data.email || '');
+    $('#modal_location').val(data.location || '');
+    $('#modal_pincode').val(data.pincode || '');
+    $('#modal_product_service').val(data.product_service || '');
+    $('#modal_initial_remark').val(data.initial_remark || '');
+    if ($('#modal_next_follow_up_date')[0]?._flatpickr) {
+      $('#modal_next_follow_up_date')[0]._flatpickr.setDate(data.next_follow_up_date || null, true, 'Y-m-d');
+    } else {
+      $('#modal_next_follow_up_date').val(data.next_follow_up_date || '');
+    }
+    $('#modal_capacity_kw').val(data.capacity_kw || '');
+    $('#modal_shadow_free_area_sqft').val(data.shadow_free_area_sqft || '');
+    $('#modal_consumer_number').val(data.consumer_number || '');
+    $('#modal_enquiry_type').val(data.enquiry_type || '').trigger('change');
+    $('#modal_enquiry_source_id').val(data.enquiry_source_id || '').trigger('change');
+    $('#modal_assigned_to').val(data.assigned_to || '').trigger('change');
+    $('#modal_lead_type').val(data.lead_type || '').trigger('change');
+    $('#modal_status').val(data.status || 'Pending').trigger('change');
+    $('#modal_finance_type').val(data.finance_type || '').trigger('change');
+    $('#modal_customer_profession').val(data.customer_profession || '').trigger('change');
+  }
+
+  function redrawEnquiryTable() {
+    if (dt_enquiries) {
+      dt_enquiries.draw();
+    }
+  }
 
   $('#collapseFilter').on('show.bs.collapse', function () {
     $('[data-bs-target="#collapseFilter"]').find('i.ti').last().removeClass('ti-chevron-down').addClass('ti-chevron-up');
@@ -155,7 +289,12 @@ $(function () {
     $('#filterForm')[0].reset();
     $('.select2').val(null).trigger('change');
     $('.flatpickr').val('');
-    dt_enquiries.draw();
+    redrawEnquiryTable();
+  });
+
+  // Auto-apply filters on any change.
+  $('#filterForm').on('change', 'select, input', function () {
+    redrawEnquiryTable();
   });
 
   setTimeout(() => {
@@ -163,70 +302,33 @@ $(function () {
     $('.dataTables_length .form-select').removeClass('form-select-sm');
   }, 300);
 
-  $(document).on('click', '.edit-record', function () {
-    var enquiry_id = $(this).data('id'),
-      dtrModal = $('.dtr-bs-modal.show');
+  initModalPlugins();
+
+  $('#openAddEnquiryModal').on('click', function () {
+    openCreateEnquiryModal();
+  });
+
+  function openExistingEnquiryModal(enquiry_id, editableByDefault, canEdit) {
+    var dtrModal = $('.dtr-bs-modal.show');
 
     if (dtrModal.length) {
       dtrModal.modal('hide');
     }
 
-    $('#offcanvasEditEnquiryLabel').html('Edit Enquiry');
-
     $.get(`${baseUrl}enquiries/${enquiry_id}/edit`, function (response) {
       if (response.success) {
         var data = response.data.enquiry;
-        $('#enquiry_id').val(data.id);
-        $('#enquiry_date').val(data.enquiry_date);
-        $('#customer_name').val(data.customer_name);
-        $('#mobile_number').val(data.mobile_number);
-        $('#alternate_mobile').val(data.alternate_mobile || '');
-        $('#email').val(data.email || '');
-        $('#product_service').val(data.product_service || '');
-        $('#initial_remark').val(data.initial_remark || '');
+        $('#enquiryModalTitle').text('Enquiry Details');
+        $('#enquiryModalSubmitBtn').text('Update Enquiry');
+        resetEnquiryModalForm();
+        fillEnquiryModal(data);
+        setEnquiryFormEditable(editableByDefault);
 
-        $('#enquiry_source_id').empty().append('<option value="">Select source</option>');
-        response.data.sources.forEach(function (source) {
-          $('#enquiry_source_id').append(`<option value="${source.id}">${source.name}</option>`);
-        });
-        $('#enquiry_source_id').val(data.enquiry_source_id).trigger('change');
-
-        if ($('#assigned_to').is('select')) {
-          $('#assigned_to').empty().append('<option value="">Select user</option>');
-          response.data.users.forEach(function (user) {
-            $('#assigned_to').append(`<option value="${user.id}">${user.name}</option>`);
-          });
-          $('#assigned_to').val(data.assigned_to).trigger('change');
-        } else {
-          $('#assigned_to').val(data.assigned_to);
+        if (!editableByDefault && canEdit) {
+          $('#enableEditBtn').removeClass('d-none');
         }
 
-        $('#lead_type').val(data.lead_type).trigger('change');
-        $('#status').val(data.status).trigger('change');
-
-        // Initialize Cleave for mobile numbers in edit form
-        const mobileNumberEdit = document.querySelector('#mobile_number');
-        if (mobileNumberEdit) {
-          new Cleave(mobileNumberEdit, {
-            phone: true,
-            phoneRegionCode: 'IN'
-          });
-        }
-        const alternateMobileEdit = document.querySelector('#alternate_mobile');
-        if (alternateMobileEdit) {
-          new Cleave(alternateMobileEdit, {
-            phone: true,
-            phoneRegionCode: 'IN'
-          });
-        }
-
-        var offcanvasEl = document.getElementById('offcanvasEditEnquiry');
-        if (offcanvasEl && typeof bootstrap !== 'undefined') {
-          var offcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
-          offcanvas.show();
-        } else if (offCanvasForm.length) {
-          offCanvasForm.offcanvas('show');
-        }
+        enquiryModal.modal('show');
       }
     }).fail(function (error) {
       Swal.fire({
@@ -238,13 +340,25 @@ $(function () {
         }
       });
     });
+  }
+
+  $(document).on('click', '.view-record', function () {
+    var enquiry_id = $(this).data('id');
+    var canEdit = $(this).data('can-edit') == 1;
+    openExistingEnquiryModal(enquiry_id, false, canEdit);
+  });
+
+  $('#enableEditBtn').on('click', function () {
+    setEnquiryFormEditable(true);
+    $('#enableEditBtn').addClass('d-none');
+    $('#enquiryModalTitle').text('Edit Enquiry');
   });
 
   var indianMobileRegex = /^[6-9]\d{9}$/;
 
-  const editEnquiryForm = document.getElementById('editEnquiryForm');
-  if (editEnquiryForm) {
-    const fv = FormValidation.formValidation(editEnquiryForm, {
+  const modalForm = document.getElementById('enquiryModalForm');
+  if (modalForm) {
+    FormValidation.formValidation(modalForm, {
       fields: {
         enquiry_date: {
           validators: {
@@ -257,6 +371,11 @@ $(function () {
           validators: {
             notEmpty: {
               message: 'Please enter customer name'
+            },
+            stringLength: {
+              min: 2,
+              max: 255,
+              message: 'Customer name must be between 2 and 255 characters'
             }
           }
         },
@@ -267,10 +386,40 @@ $(function () {
             },
             callback: {
               message: 'Please enter a valid Indian 10-digit mobile number',
-              callback: function(input) {
+              callback: function (input) {
                 const phone = input.value.replace(/\D/g, '');
                 return indianMobileRegex.test(phone);
               }
+            }
+          }
+        },
+        alternate_mobile: {
+          validators: {
+            callback: {
+              message: 'Please enter a valid Indian 10-digit mobile number',
+              callback: function (input) {
+                if (input.value === '') return true;
+                const phone = input.value.replace(/\D/g, '');
+                return indianMobileRegex.test(phone);
+              }
+            }
+          }
+        },
+        pincode: {
+          validators: {
+            callback: {
+              message: 'Pincode must be a valid 6-digit number',
+              callback: function (input) {
+                if (input.value === '') return true;
+                return /^[0-9]{6}$/.test(input.value);
+              }
+            }
+          }
+        },
+        assigned_to: {
+          validators: {
+            notEmpty: {
+              message: 'Please select assigned user'
             }
           }
         },
@@ -278,6 +427,54 @@ $(function () {
           validators: {
             notEmpty: {
               message: 'Please select source'
+            }
+          }
+        },
+        initial_remark: {
+          validators: {
+            notEmpty: {
+              message: 'Please enter remark'
+            },
+            stringLength: {
+              min: 3,
+              message: 'Remark must be at least 3 characters'
+            }
+          }
+        },
+        next_follow_up_date: {
+          validators: {
+            notEmpty: {
+              message: 'Please select next follow-up date'
+            },
+            callback: {
+              message: 'Next follow-up date must be same or after enquiry date',
+              callback: function (input) {
+                const enquiryDate = $('#modal_enquiry_date').val();
+                if (!enquiryDate) return true;
+                return input.value >= enquiryDate;
+              }
+            }
+          }
+        },
+        capacity_kw: {
+          validators: {
+            callback: {
+              message: 'Capacity must be 0 or greater',
+              callback: function (input) {
+                if (input.value === '') return true;
+                return !isNaN(input.value) && parseFloat(input.value) >= 0;
+              }
+            }
+          }
+        },
+        shadow_free_area_sqft: {
+          validators: {
+            callback: {
+              message: 'Shadow free area must be 0 or greater',
+              callback: function (input) {
+                if (input.value === '') return true;
+                return !isNaN(input.value) && parseFloat(input.value) >= 0;
+              }
             }
           }
         },
@@ -308,20 +505,24 @@ $(function () {
         autoFocus: new FormValidation.plugins.AutoFocus()
       }
     }).on('core.form.valid', function () {
-      var enquiry_id = $('#enquiry_id').val();
-      var formData = $('#editEnquiryForm').serialize() + '&_method=PUT';
+      var enquiry_id = $('#modal_enquiry_id').val();
+      var isEdit = !!enquiry_id;
+      var formData = $('#enquiryModalForm').serialize();
+      if (isEdit) {
+        formData += '&_method=PUT';
+      }
 
       $.ajax({
         data: formData,
-        url: `${baseUrl}enquiries/${enquiry_id}`,
+        url: isEdit ? `${baseUrl}enquiries/${enquiry_id}` : `${baseUrl}enquiries`,
         type: 'POST',
-        success: function (response) {
+        success: function () {
           dt_enquiries.draw();
-          offCanvasForm.offcanvas('hide');
+          enquiryModal.modal('hide');
           Swal.fire({
             icon: 'success',
-            title: 'Successfully updated!',
-            text: 'Enquiry updated successfully.',
+            title: isEdit ? 'Successfully updated!' : 'Successfully created!',
+            text: isEdit ? 'Enquiry updated successfully.' : 'Enquiry created successfully.',
             customClass: {
               confirmButton: 'btn btn-success'
             }
@@ -329,6 +530,9 @@ $(function () {
         },
         error: function (err) {
           var errorMsg = err.responseJSON?.message || 'Something went wrong!';
+          if (err.responseJSON?.errors) {
+            errorMsg = Object.values(err.responseJSON.errors).flat().join('\n');
+          }
           Swal.fire({
             title: 'Error!',
             text: errorMsg,
@@ -342,9 +546,8 @@ $(function () {
     });
   }
 
-  offCanvasForm.on('hidden.bs.offcanvas', function () {
-    $('#editEnquiryForm')[0].reset();
-    $('.select2').val(null).trigger('change');
+  enquiryModal.on('hidden.bs.modal', function () {
+    resetEnquiryModalForm();
   });
 
   $(document).on('click', '.delete-record', function () {
@@ -394,47 +597,55 @@ $(function () {
   $(document).on('click', '.update-status', function () {
     var enquiry_id = $(this).data('id');
     var status = $(this).data('status');
-    var title = status === 'Accepted' ? 'Accept Enquiry?' : 'Cancel Enquiry?';
-    var text = status === 'Accepted' ? "This will accept the enquiry." : "This will cancel the enquiry.";
-    var confirmBtnText = status === 'Accepted' ? 'Yes, Accept!' : 'Yes, Cancel!';
+    var actionText = status === 'Accepted' ? 'Accept' : 'Cancel';
+    $('#follow_up_enquiry_id').val(enquiry_id);
+    $('#follow_up_status').val(status);
+    $('#follow_up_status_label').val(actionText);
+    $('#follow_up_remark').val('');
+    followUpActionModal.modal('show');
+  });
 
-    Swal.fire({
-      title: title,
-      text: text,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: confirmBtnText,
-      customClass: {
-        confirmButton: 'btn btn-primary me-3',
-        cancelButton: 'btn btn-label-secondary'
+  followUpActionForm.on('submit', function (e) {
+    e.preventDefault();
+    var enquiry_id = $('#follow_up_enquiry_id').val();
+    var status = $('#follow_up_status').val();
+    var remark = $('#follow_up_remark').val().trim();
+
+    if (!remark) {
+      Swal.fire({
+        title: 'Validation Error',
+        text: 'Follow-up remark is required.',
+        icon: 'warning',
+        customClass: {
+          confirmButton: 'btn btn-success'
+        }
+      });
+      return;
+    }
+
+    $.ajax({
+      type: 'PATCH',
+      url: `${baseUrl}enquiries/${enquiry_id}/status`,
+      data: { status: status, follow_up_remark: remark },
+      success: function () {
+        followUpActionModal.modal('hide');
+        dt_enquiries.draw();
+        Swal.fire({
+          icon: 'success',
+          title: 'Status Updated!',
+          text: 'Enquiry status has been updated to ' + status,
+          customClass: {
+            confirmButton: 'btn btn-success'
+          }
+        });
       },
-      buttonsStyling: false
-    }).then(function (result) {
-      if (result.value) {
-        $.ajax({
-          type: 'PATCH',
-          url: `${baseUrl}enquiries/${enquiry_id}/status`,
-          data: { status: status },
-          success: function (response) {
-            dt_enquiries.draw();
-            Swal.fire({
-              icon: 'success',
-              title: 'Status Updated!',
-              text: 'Enquiry status has been updated to ' + status,
-              customClass: {
-                confirmButton: 'btn btn-success'
-              }
-            });
-          },
-          error: function (err) {
-            Swal.fire({
-              title: 'Error!',
-              text: err.responseJSON?.message || 'Something went wrong!',
-              icon: 'error',
-              customClass: {
-                confirmButton: 'btn btn-success'
-              }
-            });
+      error: function (err) {
+        Swal.fire({
+          title: 'Error!',
+          text: err.responseJSON?.message || 'Something went wrong!',
+          icon: 'error',
+          customClass: {
+            confirmButton: 'btn btn-success'
           }
         });
       }

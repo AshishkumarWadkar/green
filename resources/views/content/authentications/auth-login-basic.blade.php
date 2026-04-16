@@ -214,9 +214,9 @@ $customizerHidden = 'customizer-hide';
       <form id="formAuthentication" class="mb-4" action="{{ route('login.post') }}" method="POST">
         @csrf
         <div class="mb-6">
-          <label for="email" class="form-label">Email or Username</label>
-          <input type="text" class="form-control @error('email-username') is-invalid @enderror" id="email" name="email-username" value="{{ old('email-username') }}" placeholder="Enter your email" autofocus>
-          @error('email-username')
+          <label for="username" class="form-label">Username</label>
+          <input type="text" class="form-control @error('username') is-invalid @enderror" id="username" name="username" value="{{ old('username') }}" placeholder="Enter your username" autofocus>
+          @error('username')
             <div class="invalid-feedback">{{ $message }}</div>
           @enderror
         </div>

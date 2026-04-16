@@ -49,6 +49,26 @@ $configData = Helper::appClasses();
       </div>
 
       <div class="row">
+        <div class="col-md-4 mb-3">
+          <label for="location" class="form-label">Location</label>
+          <input type="text" class="form-control" id="location" name="location" placeholder="Enter location" />
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="pincode" class="form-label">Pincode</label>
+          <input type="text" class="form-control" id="pincode" name="pincode" placeholder="Enter pincode" />
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="enquiry_type" class="form-label">Enquiry Type</label>
+          <select class="form-select select2" id="enquiry_type" name="enquiry_type">
+            <option value="">Select enquiry type</option>
+            <option value="Residential">Residential</option>
+            <option value="Industrial">Industrial</option>
+            <option value="Commercial">Commercial</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
         <div class="col-md-6 mb-3">
           <label for="enquiry_source_id" class="form-label">Source of Enquiry <span class="text-danger">*</span></label>
           <select class="form-select select2" id="enquiry_source_id" name="enquiry_source_id">
@@ -93,8 +113,55 @@ $configData = Helper::appClasses();
       </div>
 
       <div class="mb-3">
-        <label for="initial_remark" class="form-label">Initial Remark</label>
+        <label for="initial_remark" class="form-label">Remark <span class="text-danger">*</span></label>
         <textarea class="form-control" id="initial_remark" name="initial_remark" rows="3" placeholder="Enter initial remark"></textarea>
+      </div>
+
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label for="next_follow_up_date" class="form-label">Next Follow-up Date</label>
+          <input type="text" class="form-control flatpickr" id="next_follow_up_date" name="next_follow_up_date" placeholder="Select follow-up date" />
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="capacity_kw" class="form-label">Capacity</label>
+          <div class="input-group">
+            <input type="number" min="0" step="0.01" class="form-control" id="capacity_kw" name="capacity_kw" placeholder="Enter capacity" />
+            <span class="input-group-text">KW</span>
+          </div>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="finance_type" class="form-label">Finance Type</label>
+          <select class="form-select select2" id="finance_type" name="finance_type">
+            <option value="">Select finance type</option>
+            <option value="Credit">Credit</option>
+            <option value="Cash">Cash</option>
+            <option value="EMI">EMI</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label for="shadow_free_area_sqft" class="form-label">Shadow Free Area</label>
+          <div class="input-group">
+            <input type="number" min="0" step="0.01" class="form-control" id="shadow_free_area_sqft" name="shadow_free_area_sqft" placeholder="Enter area" />
+            <span class="input-group-text">Sqft</span>
+          </div>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="customer_profession" class="form-label">Customer Profession</label>
+          <select class="form-select select2" id="customer_profession" name="customer_profession">
+            <option value="">Select profession</option>
+            @foreach($professions as $profession)
+              <option value="{{ $profession->name }}">{{ $profession->name }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="consumer_number" class="form-label">Consumer Number</label>
+          <input type="text" class="form-control" id="consumer_number" name="consumer_number" placeholder="Enter consumer number" />
+        </div>
       </div>
 
       <input type="hidden" name="status" value="Pending">

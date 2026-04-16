@@ -8,10 +8,6 @@
       "permission": "view-dashboard"
     },
     {
-      "menuHeader": "Enquiry Management",
-      "permission": "view-enquiries"
-    },
-    {
       "url": "enquiries",
       "name": "Enquiries",
       "icon": "menu-icon tf-icons ti ti-file-text",
@@ -31,10 +27,6 @@
           "permission": "view-enquiries"
         }
       ]
-    },
-    {
-      "menuHeader": "User Management",
-      "permission": "manage-users"
     },
     {
       "url": "user-management/users",

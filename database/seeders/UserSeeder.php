@@ -24,25 +24,25 @@ class UserSeeder extends Seeder
         $users = [
             [
                 'name' => 'CEO User',
-                'email' => 'ceo@crm.com',
+                'username' => 'ceo',
                 'password' => Hash::make('Password@1'),
                 'role' => $ceoRole
             ],
             [
                 'name' => 'MD User',
-                'email' => 'md@crm.com',
+                'username' => 'md',
                 'password' => Hash::make('Password@1'),
                 'role' => $mdRole
             ],
             [
                 'name' => 'Sales Manager User',
-                'email' => 'salesmanager@crm.com',
+                'username' => 'salesmanager',
                 'password' => Hash::make('Password@1'),
                 'role' => $salesManagerRole
             ],
             [
                 'name' => 'Sales User',
-                'email' => 'sales@crm.com',
+                'username' => 'sales',
                 'password' => Hash::make('Password@1'),
                 'role' => $salesRole
             ],
@@ -53,7 +53,7 @@ class UserSeeder extends Seeder
             unset($userData['role']);
 
             $user = User::firstOrCreate(
-                ['email' => $userData['email']],
+                ['username' => $userData['username']],
                 $userData
             );
             if ($role && !$user->hasRole($role->name)) {
@@ -62,9 +62,9 @@ class UserSeeder extends Seeder
         }
 
         $this->command->info('Users created successfully!');
-        $this->command->info('CEO: ceo@crm.com / Password@1');
-        $this->command->info('MD: md@crm.com / Password@1');
-        $this->command->info('Sales Manager: salesmanager@crm.com / Password@1');
-        $this->command->info('Sales: sales@crm.com / Password@1');
+        $this->command->info('CEO: ceo / Password@1');
+        $this->command->info('MD: md / Password@1');
+        $this->command->info('Sales Manager: salesmanager / Password@1');
+        $this->command->info('Sales: sales / Password@1');
     }
 }

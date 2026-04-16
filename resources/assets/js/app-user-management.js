@@ -8,14 +8,20 @@
 $(function () {
   // Variable declaration for table
   var dt_users_table = $('.datatables-users'),
-    offCanvasForm = $('#offcanvasAddUser'),
+    userFormModal = $('#userFormModal'),
     select2 = $('.select2');
 
   // Initialize Select2 (dropdownParent must be offcanvas so dropdown appears inside it and selection works)
   if (select2.length) {
-    select2.wrap('<div class="position-relative"></div>').select2({
+    select2.each(function () {
+      var $this = $(this);
+      if ($this.hasClass('select2-hidden-accessible')) {
+        $this.select2('destroy');
+      }
+      $this.wrap('<div class="position-relative"></div>').select2({
       placeholder: 'Select Roles',
-      dropdownParent: offCanvasForm
+      dropdownParent: userFormModal
+      });
     });
   }
 
@@ -38,7 +44,7 @@ $(function () {
         { data: '' },
         { data: 'id' },
         { data: 'name' },
-        { data: 'email' },
+        { data: 'username' },
         { data: 'roles' },
         { data: 'is_active' },
         { data: 'action' }
@@ -71,10 +77,10 @@ $(function () {
           }
         },
         {
-          // Email
+          // Username
           targets: 3,
           render: function (data, type, full, meta) {
-            return full.email || '';
+            return full.username || '';
           }
         },
         {
@@ -204,14 +210,14 @@ $(function () {
   // Edit record
   $(document).on('click', '.edit-record', function () {
     var user_id = $(this).data('id');
-    $('#offcanvasAddUserLabel').html('Edit User');
+    $('#userFormModalLabel').html('Edit User');
     $('#password_required, #password_confirmation_required').hide();
     $('#password_hint').show();
 
     $.get(`${baseUrl}user-management/users/${user_id}/edit`, function (data) {
       $('#user_id').val(data.id);
       $('#user_name').val(data.name);
-      $('#user_email').val(data.email);
+      $('#user_username').val(data.username);
       $('#user_password, #user_password_confirmation').val('');
       $('#user_is_active').prop('checked', data.is_active);
       
@@ -220,24 +226,33 @@ $(function () {
       } else {
         $('#user_roles').val(null).trigger('change');
       }
+
+      userFormModal.modal('show');
     });
   });
 
   // Reset form for add new
-  $('.add-new').on('click', function () {
+  $('#openUserModalBtn').on('click', function () {
     $('#addUserForm')[0].reset();
     $('#user_id').val('');
-    $('#offcanvasAddUserLabel').html('Add User');
+    $('#userFormModalLabel').html('Add User');
     $('#password_required, #password_confirmation_required').show();
     $('#password_hint').hide();
     $('#user_is_active').prop('checked', true);
+    $('#user_roles').val(null).trigger('change');
+    userFormModal.modal('show');
   });
 
   const addUserForm = document.getElementById('addUserForm');
   const fv = FormValidation.formValidation(addUserForm, {
     fields: {
       name: { validators: { notEmpty: { message: 'Please enter user name' } } },
-      email: { validators: { notEmpty: { message: 'Please enter email' }, emailAddress: { message: 'Invalid email' } } },
+      username: {
+        validators: {
+          notEmpty: { message: 'Please enter username' },
+          stringLength: { min: 3, message: 'Username must be at least 3 characters' }
+        }
+      },
       password: {
         validators: {
           callback: {
@@ -290,7 +305,7 @@ $(function () {
       headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
       success: function (response) {
         dt_users.draw();
-        offCanvasForm.offcanvas('hide');
+        userFormModal.modal('hide');
         Swal.fire({
           icon: 'success',
           title: 'Success!',
@@ -313,10 +328,10 @@ $(function () {
     });
   });
 
-  offCanvasForm.on('hidden.bs.offcanvas', function () {
+  userFormModal.on('hidden.bs.modal', function () {
     fv.resetForm(true);
     $('#user_id').val('');
-    $('#user_name, #user_email, #user_password, #user_password_confirmation').val('');
+    $('#user_name, #user_username, #user_password, #user_password_confirmation').val('');
     $('#user_roles').val(null).trigger('change');
   });
 });

@@ -16,10 +16,20 @@ class Enquiry extends Model
         'mobile_number',
         'alternate_mobile',
         'email',
+        'location',
+        'pincode',
         'enquiry_source_id',
         'product_service',
+        'enquiry_type',
         'assigned_to',
         'initial_remark',
+        'next_follow_up_date',
+        'follow_up_remark',
+        'capacity_kw',
+        'finance_type',
+        'shadow_free_area_sqft',
+        'customer_profession',
+        'consumer_number',
         'lead_type',
         'status',
         'created_by',
@@ -28,6 +38,9 @@ class Enquiry extends Model
 
     protected $casts = [
         'enquiry_date' => 'date',
+        'next_follow_up_date' => 'date',
+        'capacity_kw' => 'decimal:2',
+        'shadow_free_area_sqft' => 'decimal:2',
     ];
 
     // Relationships

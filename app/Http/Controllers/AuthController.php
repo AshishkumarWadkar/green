@@ -34,36 +34,31 @@ class AuthController extends Controller
 
     // Validate the request
     $validator = Validator::make($request->all(), [
-      'email-username' => 'required|string',
+      'username' => 'required|string',
       'password' => 'required|string',
     ], [
-      'email-username.required' => 'Email or username is required.',
+      'username.required' => 'Username is required.',
       'password.required' => 'Password is required.',
     ]);
 
     if ($validator->fails()) {
       return back()
         ->withErrors($validator)
-        ->withInput($request->only('email-username'));
+        ->withInput($request->only('username'));
     }
 
-    $credentials = $request->only('email-username', 'password');
+    $credentials = $request->only('username', 'password');
     $remember = $request->has('remember-me');
 
-    // Try to authenticate using email or username
-    // First, try to find user by email
-    $user = \App\Models\User::where('email', $credentials['email-username'])->first();
+    $user = \App\Models\User::where('username', $credentials['username'])->first();
 
-    // If not found by email, try by username (if you have a username field)
-    // For now, we'll use email only as the User model uses email
     if (!$user) {
       return back()
-        ->withErrors(['email-username' => 'These credentials do not match our records.'])
-        ->withInput($request->only('email-username'));
+        ->withErrors(['username' => 'These credentials do not match our records.'])
+        ->withInput($request->only('username'));
     }
 
-    // Attempt to authenticate
-    if (Auth::attempt(['email' => $user->email, 'password' => $credentials['password']], $remember)) {
+    if (Auth::attempt(['username' => $user->username, 'password' => $credentials['password']], $remember)) {
       $request->session()->regenerate();
 
       return redirect()->intended(route('pages-home'));
@@ -71,7 +66,7 @@ class AuthController extends Controller
 
     return back()
       ->withErrors(['password' => 'The provided password is incorrect.'])
-      ->withInput($request->only('email-username'));
+      ->withInput($request->only('username'));
   }
 
   /**

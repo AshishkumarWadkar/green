@@ -104,6 +104,24 @@ $(function () {
             }
           }
         },
+        pincode: {
+          validators: {
+            callback: {
+              message: 'Pincode must be a valid 6-digit number',
+              callback: function (input) {
+                if (input.value === '') return true;
+                return /^[0-9]{6}$/.test(input.value);
+              }
+            }
+          }
+        },
+        initial_remark: {
+          validators: {
+            notEmpty: {
+              message: 'Please enter remark'
+            }
+          }
+        },
         lead_type: {
           validators: {
             notEmpty: {
