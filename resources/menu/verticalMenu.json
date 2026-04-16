@@ -29,6 +29,27 @@
       ]
     },
     {
+      "url": "enquiries/followups",
+      "name": "Follow-up",
+      "icon": "menu-icon tf-icons ti ti-calendar-time",
+      "slug": "followups",
+      "permission": "view-enquiries",
+      "submenu": [
+        {
+          "url": "enquiries/followups?scope=today",
+          "name": "Todays Follow-up",
+          "slug": "enquiries.followups.today",
+          "permission": "view-enquiries"
+        },
+        {
+          "url": "enquiries/followups?scope=all",
+          "name": "All Follow-up",
+          "slug": "enquiries.followups.all",
+          "permission": "view-enquiries"
+        }
+      ]
+    },
+    {
       "url": "user-management/users",
       "name": "Users",
       "icon": "menu-icon tf-icons ti ti-users",

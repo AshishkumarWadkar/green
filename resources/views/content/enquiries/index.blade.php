@@ -221,6 +221,29 @@ $configData = Helper::appClasses();
         <form id="enquiryModalForm">
           @include('content.enquiries.partials.form-fields')
         </form>
+        <div id="followupHistorySection" class="mt-4 d-none">
+          <h6 class="mb-3">Follow-up History</h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Next Date</th>
+                  <th>Remark</th>
+                  <th>By</th>
+                  <th>At</th>
+                </tr>
+              </thead>
+              <tbody id="followupHistoryBody">
+                <tr>
+                  <td colspan="7" class="text-center text-muted">No follow-up history available.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Cancel</button>

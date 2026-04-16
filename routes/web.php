@@ -37,6 +37,12 @@ Route::middleware('auth')->group(function () {
   Route::prefix('enquiries')->name('enquiries.')->group(function () {
     Route::get('/', [EnquiryController::class, 'index'])->name('index');
     Route::get('/data', [EnquiryController::class, 'getData'])->name('data');
+    Route::get('/followups', [EnquiryController::class, 'followUps'])->name('followups');
+    Route::get('/followups/data', [EnquiryController::class, 'followUpsData'])->name('followups.data');
+    Route::get('/followups/completed-data', [EnquiryController::class, 'completedFollowUpsData'])->name('followups.completed-data');
+    Route::get('/followups/{id}/edit', [EnquiryController::class, 'editFollowUp'])->name('followups.edit');
+    Route::patch('/{id}/followup-complete', [EnquiryController::class, 'completeFollowUp'])->name('followups.complete');
+    Route::put('/followups/{id}', [EnquiryController::class, 'updateFollowUp'])->name('followups.update');
     Route::get('/create', [EnquiryController::class, 'create'])->name('create');
     Route::post('/', [EnquiryController::class, 'store'])->name('store');
     Route::get('/{id}', [EnquiryController::class, 'show'])->name('show');

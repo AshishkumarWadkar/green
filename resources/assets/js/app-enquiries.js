@@ -217,6 +217,35 @@ $(function () {
     $('#modal_status').val('Pending').trigger('change');
     $('#enableEditBtn').addClass('d-none');
     $('#enquiryModalSubmitBtn').removeClass('d-none');
+    $('#followupHistorySection').addClass('d-none');
+    $('#followupHistoryBody').html(
+      '<tr><td colspan="7" class="text-center text-muted">No follow-up history available.</td></tr>'
+    );
+  }
+
+  function renderFollowupHistory(followUps) {
+    if (!followUps || !followUps.length) {
+      $('#followupHistoryBody').html(
+        '<tr><td colspan="7" class="text-center text-muted">No follow-up history available.</td></tr>'
+      );
+      return;
+    }
+
+    const rows = followUps
+      .map(function (item) {
+        return `<tr>
+          <td>${item.follow_up_date || '-'}</td>
+          <td>${item.previous_status || '-'}</td>
+          <td>${item.new_status || '-'}</td>
+          <td>${item.next_follow_up_date || '-'}</td>
+          <td>${item.remark || '-'}</td>
+          <td>${item.created_by || '-'}</td>
+          <td>${item.created_at || '-'}</td>
+        </tr>`;
+      })
+      .join('');
+
+    $('#followupHistoryBody').html(rows);
   }
 
   function setEnquiryFormEditable(isEditable) {
@@ -273,6 +302,26 @@ $(function () {
     $('#modal_customer_profession').val(data.customer_profession || '').trigger('change');
   }
 
+  function toggleNextFollowUpDateField() {
+    const isPendingStatus = $('#modal_status').val() === 'Pending';
+    const nextDateFieldWrapper = $('#nextFollowUpDateWrapper');
+    const nextDateInput = $('#modal_next_follow_up_date');
+    const requiredMark = $('#nextFollowUpRequiredMark');
+
+    nextDateFieldWrapper.toggleClass('d-none', !isPendingStatus);
+    requiredMark.toggleClass('d-none', !isPendingStatus);
+    nextDateInput.prop('disabled', !isPendingStatus);
+
+    if (!isPendingStatus) {
+      const flatpickrInstance = nextDateInput[0]?._flatpickr;
+      if (flatpickrInstance) {
+        flatpickrInstance.clear();
+      } else {
+        nextDateInput.val('');
+      }
+    }
+  }
+
   function redrawEnquiryTable() {
     if (dt_enquiries) {
       dt_enquiries.draw();
@@ -318,11 +367,17 @@ $(function () {
     $.get(`${baseUrl}enquiries/${enquiry_id}/edit`, function (response) {
       if (response.success) {
         var data = response.data.enquiry;
+        var followUps = response.data.followUps || [];
         $('#enquiryModalTitle').text('Enquiry Details');
         $('#enquiryModalSubmitBtn').text('Update Enquiry');
         resetEnquiryModalForm();
         fillEnquiryModal(data);
         setEnquiryFormEditable(editableByDefault);
+
+        if (!editableByDefault) {
+          renderFollowupHistory(followUps);
+          $('#followupHistorySection').removeClass('d-none');
+        }
 
         if (!editableByDefault && canEdit) {
           $('#enableEditBtn').removeClass('d-none');
@@ -342,23 +397,109 @@ $(function () {
     });
   }
 
+  function openEnquiryFromQueryParam() {
+    const params = new URLSearchParams(window.location.search);
+    const enquiryId = params.get('open_enquiry');
+    const canEdit = params.get('open_enquiry_can_edit') === '1';
+
+    if (!enquiryId) {
+      return;
+    }
+
+    openExistingEnquiryModal(enquiryId, false, canEdit);
+    params.delete('open_enquiry');
+    params.delete('open_enquiry_can_edit');
+    const updatedQuery = params.toString();
+    const updatedUrl = `${window.location.pathname}${updatedQuery ? `?${updatedQuery}` : ''}`;
+    window.history.replaceState({}, '', updatedUrl);
+  }
+
   $(document).on('click', '.view-record', function () {
     var enquiry_id = $(this).data('id');
     var canEdit = $(this).data('can-edit') == 1;
     openExistingEnquiryModal(enquiry_id, false, canEdit);
   });
 
+  openEnquiryFromQueryParam();
+
   $('#enableEditBtn').on('click', function () {
     setEnquiryFormEditable(true);
     $('#enableEditBtn').addClass('d-none');
     $('#enquiryModalTitle').text('Edit Enquiry');
+    $('#followupHistorySection').addClass('d-none');
   });
 
   var indianMobileRegex = /^[6-9]\d{9}$/;
+  var enquiryFormValidator = null;
+  var isSubmittingEnquiryForm = false;
 
   const modalForm = document.getElementById('enquiryModalForm');
   if (modalForm) {
-    FormValidation.formValidation(modalForm, {
+    function submitEnquiryForm() {
+      if (isSubmittingEnquiryForm) {
+        return;
+      }
+
+      var enquiry_id = $('#modal_enquiry_id').val();
+      var isEdit = !!enquiry_id;
+      var formData = $('#enquiryModalForm').serialize();
+
+      if (isEdit) {
+        formData += '&_method=PUT';
+      }
+
+      isSubmittingEnquiryForm = true;
+      $('#enquiryModalSubmitBtn').prop('disabled', true);
+
+      $.ajax({
+        data: formData,
+        url: isEdit ? `${baseUrl}enquiries/${enquiry_id}` : `${baseUrl}enquiries`,
+        type: 'POST',
+        success: function () {
+          if (dt_enquiries) {
+            // After creating a new enquiry, clear any active datatable search/filter
+            // so the user sees the fresh row immediately.
+            if (!isEdit) {
+              dt_enquiries.search('');
+              $('.dataTables_filter input').val('');
+            }
+            dt_enquiries.ajax.reload(null, false);
+          }
+          enquiryModal.modal('hide');
+          Swal.fire({
+            icon: 'success',
+            title: isEdit ? 'Successfully updated!' : 'Successfully created!',
+            text: isEdit ? 'Enquiry updated successfully.' : 'Enquiry created successfully.',
+            showConfirmButton: false,
+            timer: 1500,
+            timerProgressBar: true,
+            customClass: {
+              confirmButton: 'btn btn-success'
+            }
+          });
+        },
+        error: function (err) {
+          var errorMsg = err.responseJSON?.message || 'Something went wrong!';
+          if (err.responseJSON?.errors) {
+            errorMsg = Object.values(err.responseJSON.errors).flat().join('\n');
+          }
+          Swal.fire({
+            title: 'Error!',
+            text: errorMsg,
+            icon: 'error',
+            customClass: {
+              confirmButton: 'btn btn-success'
+            }
+          });
+        },
+        complete: function () {
+          isSubmittingEnquiryForm = false;
+          $('#enquiryModalSubmitBtn').prop('disabled', false);
+        }
+      });
+    }
+
+    enquiryFormValidator = FormValidation.formValidation(modalForm, {
       fields: {
         enquiry_date: {
           validators: {
@@ -441,21 +582,6 @@ $(function () {
             }
           }
         },
-        next_follow_up_date: {
-          validators: {
-            notEmpty: {
-              message: 'Please select next follow-up date'
-            },
-            callback: {
-              message: 'Next follow-up date must be same or after enquiry date',
-              callback: function (input) {
-                const enquiryDate = $('#modal_enquiry_date').val();
-                if (!enquiryDate) return true;
-                return input.value >= enquiryDate;
-              }
-            }
-          }
-        },
         capacity_kw: {
           validators: {
             callback: {
@@ -504,43 +630,60 @@ $(function () {
         submitButton: new FormValidation.plugins.SubmitButton(),
         autoFocus: new FormValidation.plugins.AutoFocus()
       }
-    }).on('core.form.valid', function () {
-      var enquiry_id = $('#modal_enquiry_id').val();
-      var isEdit = !!enquiry_id;
-      var formData = $('#enquiryModalForm').serialize();
-      if (isEdit) {
-        formData += '&_method=PUT';
+    });
+
+    $('#modal_status').on('change', function () {
+      toggleNextFollowUpDateField();
+
+      if (!enquiryFormValidator) {
+        return;
       }
 
-      $.ajax({
-        data: formData,
-        url: isEdit ? `${baseUrl}enquiries/${enquiry_id}` : `${baseUrl}enquiries`,
-        type: 'POST',
-        success: function () {
-          dt_enquiries.draw();
-          enquiryModal.modal('hide');
-          Swal.fire({
-            icon: 'success',
-            title: isEdit ? 'Successfully updated!' : 'Successfully created!',
-            text: isEdit ? 'Enquiry updated successfully.' : 'Enquiry created successfully.',
-            customClass: {
-              confirmButton: 'btn btn-success'
-            }
-          });
-        },
-        error: function (err) {
-          var errorMsg = err.responseJSON?.message || 'Something went wrong!';
-          if (err.responseJSON?.errors) {
-            errorMsg = Object.values(err.responseJSON.errors).flat().join('\n');
+      if ($(this).val() !== 'Pending') {
+        $('#modal_next_follow_up_date').val('');
+      }
+    });
+
+    toggleNextFollowUpDateField();
+
+    $('#enquiryModalForm').on('submit', function (e) {
+      e.preventDefault();
+
+      const status = $('#modal_status').val();
+      const nextFollowUpDate = $('#modal_next_follow_up_date').val();
+      const enquiryDate = $('#modal_enquiry_date').val();
+
+      if (status !== 'Pending') {
+        $('#modal_next_follow_up_date').val('');
+      }
+
+      if (status === 'Pending' && !nextFollowUpDate) {
+        Swal.fire({
+          title: 'Validation Error',
+          text: 'Please select next follow-up date',
+          icon: 'warning',
+          customClass: {
+            confirmButton: 'btn btn-success'
           }
-          Swal.fire({
-            title: 'Error!',
-            text: errorMsg,
-            icon: 'error',
-            customClass: {
-              confirmButton: 'btn btn-success'
-            }
-          });
+        });
+        return;
+      }
+
+      if (status === 'Pending' && nextFollowUpDate && enquiryDate && nextFollowUpDate < enquiryDate) {
+        Swal.fire({
+          title: 'Validation Error',
+          text: 'Next follow-up date must be same or after enquiry date',
+          icon: 'warning',
+          customClass: {
+            confirmButton: 'btn btn-success'
+          }
+        });
+        return;
+      }
+
+      enquiryFormValidator.validate().then(function (status) {
+        if (status === 'Valid') {
+          submitEnquiryForm();
         }
       });
     });

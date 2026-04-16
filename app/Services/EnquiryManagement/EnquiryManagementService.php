@@ -4,6 +4,7 @@ namespace App\Services\EnquiryManagement;
 
 use App\Models\CustomerProfession;
 use App\Models\Enquiry;
+use App\Models\EnquiryFollowUp;
 use App\Models\EnquirySource;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -80,6 +81,69 @@ class EnquiryManagementService
         return $query->orderByDesc('enquiry_date')->orderByDesc('id');
     }
 
+    public function getFollowUpListingQuery(User $authUser, array $filters = []): Builder
+    {
+        $query = Enquiry::query()
+            ->with(['enquirySource', 'assignedUser', 'createdBy'])
+            ->where('status', 'Pending');
+
+        if (($filters['scope'] ?? 'today') !== 'all') {
+            $query->whereDate('next_follow_up_date', '<=', now()->toDateString());
+        }
+
+        if (!empty($filters['date_from'])) {
+            $query->whereDate('next_follow_up_date', '>=', $filters['date_from']);
+        }
+        if (!empty($filters['date_to'])) {
+            $query->whereDate('next_follow_up_date', '<=', $filters['date_to']);
+        }
+        if (!empty($filters['assigned_to'])) {
+            $query->where('assigned_to', $filters['assigned_to']);
+        }
+
+        if ($authUser->hasRole('Sales')) {
+            $query->where('assigned_to', $authUser->id);
+        }
+
+        return $query->orderBy('next_follow_up_date')->orderByDesc('id');
+    }
+
+    public function getCompletedFollowUpListingQuery(User $authUser, array $filters = []): Builder
+    {
+        $query = EnquiryFollowUp::query()
+            ->with(['enquiry.assignedUser', 'createdBy'])
+            ->whereHas('enquiry')
+            ->where('is_done', true);
+
+        if (!empty($filters['date_from'])) {
+            $query->whereDate('follow_up_date', '>=', $filters['date_from']);
+        }
+        if (!empty($filters['date_to'])) {
+            $query->whereDate('follow_up_date', '<=', $filters['date_to']);
+        }
+        if (!empty($filters['assigned_to'])) {
+            $query->whereHas('enquiry', function ($enquiryQuery) use ($filters) {
+                $enquiryQuery->where('assigned_to', $filters['assigned_to']);
+            });
+        }
+
+        if ($authUser->hasRole('Sales')) {
+            $query->whereHas('enquiry', function ($enquiryQuery) use ($authUser) {
+                $enquiryQuery->where('assigned_to', $authUser->id);
+            });
+        }
+
+        return $query->orderByDesc('follow_up_date')->orderByDesc('created_at');
+    }
+
+    public function getFollowUpForEdit(User $authUser, int $followUpId): EnquiryFollowUp
+    {
+        $followUp = EnquiryFollowUp::with(['enquiry.assignedUser', 'createdBy'])->findOrFail($followUpId);
+        $this->ensureUserCanAccessEnquiry($authUser, $followUp->enquiry);
+
+        return $followUp;
+    }
+
     public function getFilterOptions(User $authUser, ?string $type = null): array
     {
         $all = [
@@ -129,7 +193,7 @@ class EnquiryManagementService
                 'enquiry_type' => $data['enquiry_type'] ?? null,
                 'assigned_to' => $authUser->hasRole('Sales') ? $authUser->id : $data['assigned_to'],
                 'initial_remark' => $data['initial_remark'],
-                'next_follow_up_date' => $data['next_follow_up_date'],
+                'next_follow_up_date' => $data['next_follow_up_date'] ?? null,
                 'capacity_kw' => $data['capacity_kw'] ?? null,
                 'finance_type' => $data['finance_type'] ?? null,
                 'shadow_free_area_sqft' => $data['shadow_free_area_sqft'] ?? null,
@@ -165,7 +229,7 @@ class EnquiryManagementService
             'product_service' => $data['product_service'] ?? null,
             'enquiry_type' => $data['enquiry_type'] ?? null,
             'initial_remark' => $data['initial_remark'],
-            'next_follow_up_date' => $data['next_follow_up_date'],
+            'next_follow_up_date' => $data['next_follow_up_date'] ?? null,
             'capacity_kw' => $data['capacity_kw'] ?? null,
             'finance_type' => $data['finance_type'] ?? null,
             'shadow_free_area_sqft' => $data['shadow_free_area_sqft'] ?? null,
@@ -208,14 +272,122 @@ class EnquiryManagementService
         }
 
         $data = $validator->validated();
+        if ($data['status'] !== 'Pending') {
+            $data['next_follow_up_date'] = null;
+        }
 
         $enquiry->update([
             'status' => $data['status'],
             'follow_up_remark' => $data['follow_up_remark'],
+            'next_follow_up_date' => $data['next_follow_up_date'] ?? null,
             'updated_by' => $authUser->id,
         ]);
 
         return $enquiry->fresh(['enquirySource', 'assignedUser', 'createdBy']);
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    public function completeFollowUp(User $authUser, Enquiry $enquiry, array $payload): Enquiry
+    {
+        $this->ensureUserCanAccessEnquiry($authUser, $enquiry);
+
+        $validator = Validator::make($payload, [
+            'status' => 'required|in:Pending,Accepted,Cancelled',
+            'remark' => 'required|string|min:3',
+            'next_follow_up_date' => 'nullable|date|after_or_equal:today',
+        ]);
+
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+
+        $data = $validator->validated();
+
+        if ($data['status'] === 'Pending' && empty($data['next_follow_up_date'])) {
+            throw ValidationException::withMessages([
+                'next_follow_up_date' => ['Next follow-up date is required when status is Pending.']
+            ]);
+        }
+
+        if ($data['status'] !== 'Pending') {
+            $data['next_follow_up_date'] = null;
+        }
+
+        return DB::transaction(function () use ($authUser, $enquiry, $data) {
+            EnquiryFollowUp::create([
+                'enquiry_id' => $enquiry->id,
+                'follow_up_date' => now()->toDateString(),
+                'previous_status' => $enquiry->status,
+                'new_status' => $data['status'],
+                'remark' => $data['remark'],
+                'next_follow_up_date' => $data['next_follow_up_date'] ?? null,
+                'is_done' => $data['status'] !== 'Pending',
+                'created_by' => $authUser->id,
+            ]);
+
+            $enquiry->update([
+                'status' => $data['status'],
+                'follow_up_remark' => $data['remark'],
+                'next_follow_up_date' => $data['next_follow_up_date'] ?? null,
+                'updated_by' => $authUser->id,
+            ]);
+
+            return $enquiry->fresh(['enquirySource', 'assignedUser', 'createdBy']);
+        });
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    public function updateFollowUp(User $authUser, EnquiryFollowUp $followUp, array $payload): EnquiryFollowUp
+    {
+        $enquiry = $followUp->enquiry()->firstOrFail();
+        $this->ensureUserCanAccessEnquiry($authUser, $enquiry);
+
+        $validator = Validator::make($payload, [
+            'status' => 'required|in:Pending,Accepted,Cancelled',
+            'remark' => 'required|string|min:3',
+            'next_follow_up_date' => 'nullable|date|after_or_equal:today',
+        ]);
+
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+
+        $data = $validator->validated();
+
+        if ($data['status'] === 'Pending' && empty($data['next_follow_up_date'])) {
+            throw ValidationException::withMessages([
+                'next_follow_up_date' => ['Next follow-up date is required when status is Pending.']
+            ]);
+        }
+
+        if ($data['status'] !== 'Pending') {
+            $data['next_follow_up_date'] = null;
+        }
+
+        return DB::transaction(function () use ($followUp, $enquiry, $authUser, $data) {
+            $followUp->update([
+                'new_status' => $data['status'],
+                'remark' => $data['remark'],
+                'next_follow_up_date' => $data['next_follow_up_date'] ?? null,
+                'is_done' => $data['status'] !== 'Pending',
+            ]);
+
+            $latestFollowUpId = $enquiry->followUps()->latest('created_at')->value('id');
+            if ((int) $latestFollowUpId === (int) $followUp->id) {
+                $enquiry->update([
+                    'status' => $data['status'],
+                    'follow_up_remark' => $data['remark'],
+                    'next_follow_up_date' => $data['next_follow_up_date'] ?? null,
+                    'updated_by' => $authUser->id,
+                ]);
+            }
+
+            return $followUp->fresh(['enquiry.assignedUser', 'createdBy']);
+        });
     }
 
     /**
@@ -245,6 +417,9 @@ class EnquiryManagementService
         $payload['location'] = !empty($payload['location'])
             ? ucfirst(strtolower(trim((string) $payload['location'])))
             : null;
+        if (($payload['status'] ?? null) !== 'Pending') {
+            $payload['next_follow_up_date'] = null;
+        }
 
         return $payload;
     }
@@ -263,7 +438,7 @@ class EnquiryManagementService
             'product_service' => 'nullable|string|max:255',
             'enquiry_type' => 'nullable|in:Residential,Industrial,Commercial',
             'initial_remark' => 'required|string|min:3',
-            'next_follow_up_date' => 'required|date|after:today|after_or_equal:enquiry_date',
+            'next_follow_up_date' => 'nullable|required_if:status,Pending|date|after_or_equal:today|after_or_equal:enquiry_date',
             'capacity_kw' => 'nullable|numeric|min:0',
             'finance_type' => 'nullable|in:Credit,Cash,EMI,Other',
             'shadow_free_area_sqft' => 'nullable|numeric|min:0',
@@ -286,8 +461,8 @@ class EnquiryManagementService
             'mobile_number.regex' => 'Mobile number must be a valid 10-digit Indian number.',
             'alternate_mobile.regex' => 'Alternate mobile must be a valid 10-digit Indian number.',
             'pincode.regex' => 'Pincode must be a valid 6-digit number.',
-            'next_follow_up_date.after' => 'Next follow-up date must be a future date.',
-            'next_follow_up_date.after_or_equal' => 'Next follow-up date must be the same or later than enquiry date.',
+            'next_follow_up_date.required_if' => 'Please select next follow-up date',
+            'next_follow_up_date.after_or_equal' => 'Next follow-up date must be today or later, and not before enquiry date.',
         ];
     }
 }

@@ -31,9 +31,14 @@ Route::prefix('')->group(function () {
             Route::get('/', [EnquiryController::class, 'index'])->middleware('can:view-enquiries');
             Route::post('/', [EnquiryController::class, 'store'])->middleware('can:create-enquiries');
             Route::get('/filters', [EnquiryController::class, 'filterOptions'])->middleware('can:view-enquiries');
+            Route::get('/followups', [EnquiryController::class, 'followUps'])->middleware('can:view-enquiries');
+            Route::get('/followups/completed', [EnquiryController::class, 'completedFollowUps'])->middleware('can:view-enquiries');
+            Route::get('/followups/{followUp}', [EnquiryController::class, 'showFollowUp'])->middleware('can:view-enquiries');
             Route::get('/{enquiry}', [EnquiryController::class, 'show'])->middleware('can:view-enquiries');
             Route::put('/{enquiry}', [EnquiryController::class, 'update'])->middleware('can:edit-enquiries');
             Route::patch('/{enquiry}/status', [EnquiryController::class, 'updateStatus'])->middleware('can:edit-enquiries');
+            Route::patch('/{enquiry}/followup-complete', [EnquiryController::class, 'completeFollowUp'])->middleware('can:edit-enquiries');
+            Route::put('/followups/{followUp}', [EnquiryController::class, 'updateFollowUp'])->middleware('can:edit-enquiries');
             Route::delete('/{enquiry}', [EnquiryController::class, 'destroy'])->middleware('can:delete-enquiries');
         });
     });

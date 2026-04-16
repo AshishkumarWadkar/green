@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CustomerProfession;
 use App\Models\Enquiry;
+use App\Models\EnquiryFollowUp;
 use App\Models\EnquirySource;
 use App\Services\EnquiryManagement\EnquiryManagementService;
 use Illuminate\Http\Request;
@@ -49,6 +50,190 @@ class EnquiryController extends Controller
         $viewStatus = $request->get('view', 'all'); // 'all' or 'cancelled'
 
         return view('content.enquiries.index', compact('sources', 'leadTypes', 'users', 'professions', 'locations', 'pincodes', 'viewStatus'));
+    }
+
+    public function followUps(Request $request)
+    {
+        $scope = $request->get('scope', 'today');
+        if (!in_array($scope, ['today', 'all'], true)) {
+            $scope = 'today';
+        }
+        $users = $this->getUsersForEnquiryList();
+        return view('content.enquiries.followups', compact('users', 'scope'));
+    }
+
+    public function followUpsData(Request $request)
+    {
+        $query = $this->enquiryManagementService->getFollowUpListingQuery(auth()->user(), $request->all());
+        $start = $request->get('start', 0);
+
+        return DataTables::of($query)
+            ->addIndexColumn()
+            ->addColumn('fake_id', function ($row) use ($start) {
+                static $index = 0;
+                $index++;
+                return $start + $index;
+            })
+            ->editColumn('next_follow_up_date', function ($row) {
+                return optional($row->next_follow_up_date)->format('d M Y') ?? '-';
+            })
+            ->editColumn('enquiry_date', function ($row) {
+                return optional($row->enquiry_date)->format('d M Y') ?? '-';
+            })
+            ->editColumn('customer_name', function ($row) {
+                $canEdit = $this->userCanAccessEnquiry($row) && auth()->user()->can('edit-enquiries');
+                $enquiryUrl = route('enquiries.index', [
+                    'open_enquiry' => $row->id,
+                    'open_enquiry_can_edit' => $canEdit ? 1 : 0,
+                ]);
+                return '<a href="' . $enquiryUrl . '" class="fw-medium text-primary">' . e($row->customer_name) . '</a>';
+            })
+            ->editColumn('mobile_number', function ($row) {
+                return '<span>' . $row->mobile_number . '</span>';
+            })
+            ->editColumn('assigned_to', function ($row) {
+                return $row->assignedUser ? $row->assignedUser->name : '-';
+            })
+            ->editColumn('follow_up_remark', function ($row) {
+                return $row->follow_up_remark ?: '-';
+            })
+            ->addColumn('action', function ($row) {
+                return '<button class="btn btn-sm btn-primary complete-followup" data-id="' . $row->id . '" data-customer="' . e($row->customer_name) . '">Follow-up</button>';
+            })
+            ->rawColumns(['customer_name', 'mobile_number', 'action'])
+            ->make(true);
+    }
+
+    public function completedFollowUpsData(Request $request)
+    {
+        $query = $this->enquiryManagementService->getCompletedFollowUpListingQuery(auth()->user(), $request->all());
+        $start = $request->get('start', 0);
+
+        return DataTables::of($query)
+            ->addIndexColumn()
+            ->addColumn('fake_id', function ($row) use ($start) {
+                static $index = 0;
+                $index++;
+                return $start + $index;
+            })
+            ->addColumn('customer_name', function ($row) {
+                $enquiry = $row->enquiry;
+                if (!$enquiry) {
+                    return '<span class="fw-medium">-</span>';
+                }
+
+                $canEdit = $this->userCanAccessEnquiry($enquiry) && auth()->user()->can('edit-enquiries');
+                $enquiryUrl = route('enquiries.index', [
+                    'open_enquiry' => $enquiry->id,
+                    'open_enquiry_can_edit' => $canEdit ? 1 : 0,
+                ]);
+                return '<a href="' . $enquiryUrl . '" class="fw-medium text-primary">' . e($enquiry->customer_name) . '</a>';
+            })
+            ->addColumn('mobile_number', function ($row) {
+                return '<span>' . optional($row->enquiry)->mobile_number . '</span>';
+            })
+            ->editColumn('follow_up_date', function ($row) {
+                return optional($row->follow_up_date)->format('d M Y') ?? '-';
+            })
+            ->editColumn('next_follow_up_date', function ($row) {
+                return optional($row->next_follow_up_date)->format('d M Y') ?? '-';
+            })
+            ->addColumn('assigned_to', function ($row) {
+                return optional(optional($row->enquiry)->assignedUser)->name ?? '-';
+            })
+            ->addColumn('updated_by', function ($row) {
+                return optional($row->createdBy)->name ?? '-';
+            })
+            ->addColumn('action', function ($row) {
+                return '<button class="btn btn-sm btn-label-primary edit-followup" data-id="' . $row->id . '">Edit</button>';
+            })
+            ->rawColumns(['customer_name', 'mobile_number', 'action'])
+            ->make(true);
+    }
+
+    public function editFollowUp($id)
+    {
+        if (!auth()->user()->can('edit-enquiries')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to edit follow-ups.'
+            ], 403);
+        }
+
+        $followUp = $this->enquiryManagementService->getFollowUpForEdit(auth()->user(), (int) $id);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $followUp->id,
+                'enquiry_id' => $followUp->enquiry_id,
+                'customer_name' => optional($followUp->enquiry)->customer_name,
+                'status' => $followUp->new_status,
+                'remark' => $followUp->remark,
+                'next_follow_up_date' => optional($followUp->next_follow_up_date)->format('Y-m-d'),
+            ]
+        ]);
+    }
+
+    public function completeFollowUp(Request $request, $id)
+    {
+        if (!auth()->user()->can('edit-enquiries')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update follow-ups.'
+            ], 403);
+        }
+
+        $enquiry = Enquiry::findOrFail($id);
+
+        if (!$this->userCanAccessEnquiry($enquiry)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to update this enquiry follow-up.'
+            ], 403);
+        }
+
+        try {
+            $this->enquiryManagementService->completeFollowUp(auth()->user(), $enquiry, $request->all());
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Follow-up updated successfully.'
+        ]);
+    }
+
+    public function updateFollowUp(Request $request, $id)
+    {
+        if (!auth()->user()->can('edit-enquiries')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to edit follow-ups.'
+            ], 403);
+        }
+
+        $followUp = EnquiryFollowUp::findOrFail($id);
+
+        try {
+            $this->enquiryManagementService->updateFollowUp(auth()->user(), $followUp, $request->all());
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Follow-up edited successfully.'
+        ]);
     }
 
     public function getData(Request $request)
@@ -179,10 +364,10 @@ class EnquiryController extends Controller
 
     public function edit($id)
     {
-        if (!auth()->user()->can('edit-enquiries')) {
+        if (!auth()->user()->can('view-enquiries')) {
             return response()->json([
                 'success' => false,
-                'message' => 'You do not have permission to edit enquiries.'
+                'message' => 'You do not have permission to view enquiries.'
             ], 403);
         }
 
@@ -198,16 +383,28 @@ class EnquiryController extends Controller
         $sources = EnquirySource::where('is_active', true)->orderBy('sort_order')->get();
         $users = $this->getAssignableSalesReps();
 
-        $enquiry->load(['enquirySource', 'assignedUser']);
+        $enquiry->load(['enquirySource', 'assignedUser', 'followUps.createdBy']);
 
         $enquiryData = $enquiry->toArray();
         $enquiryData['enquiry_date'] = $enquiry->enquiry_date->format('Y-m-d');
         $enquiryData['next_follow_up_date'] = $enquiry->next_follow_up_date ? $enquiry->next_follow_up_date->format('Y-m-d') : null;
+        $followUpHistory = $enquiry->followUps->map(function ($followUp) {
+            return [
+                'follow_up_date' => optional($followUp->follow_up_date)->format('d M Y'),
+                'previous_status' => $followUp->previous_status,
+                'new_status' => $followUp->new_status,
+                'remark' => $followUp->remark,
+                'next_follow_up_date' => optional($followUp->next_follow_up_date)->format('d M Y'),
+                'created_by' => optional($followUp->createdBy)->name,
+                'created_at' => optional($followUp->created_at)->format('d M Y h:i A'),
+            ];
+        })->values();
 
         return response()->json([
             'success' => true,
             'data' => [
                 'enquiry' => $enquiryData,
+                'followUps' => $followUpHistory,
                 'sources' => $sources,
                 'users' => $users,
                 'leadTypes' => [

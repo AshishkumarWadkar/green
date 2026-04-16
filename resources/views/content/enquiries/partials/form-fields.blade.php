@@ -97,18 +97,14 @@
 </div>
 
 <div class="row">
-  <div class="col-md-4 mb-3">
-    <label for="modal_next_follow_up_date" class="form-label">Next Follow-up Date <span class="text-danger">*</span></label>
-    <input type="text" class="form-control flatpickr-modal" id="modal_next_follow_up_date" name="next_follow_up_date" placeholder="Select follow-up date" />
-  </div>
-  <div class="col-md-4 mb-3">
+  <div class="col-md-6 mb-3">
     <label for="modal_capacity_kw" class="form-label">Capacity</label>
     <div class="input-group">
       <input type="number" min="0" step="1" class="form-control" id="modal_capacity_kw" name="capacity_kw" placeholder="Enter capacity" />
       <span class="input-group-text">KW</span>
     </div>
   </div>
-  <div class="col-md-4 mb-3">
+  <div class="col-md-6 mb-3">
     <label for="modal_finance_type" class="form-label">Finance Type</label>
     <select class="form-select modal-select2" id="modal_finance_type" name="finance_type">
       <option value="">Select finance type</option>
@@ -151,5 +147,11 @@
       <option value="Accepted">Accepted</option>
       <option value="Cancelled">Cancelled</option>
     </select>
+  </div>
+  <div class="col-md-6 mb-3" id="nextFollowUpDateWrapper">
+    <label for="modal_next_follow_up_date" class="form-label">
+      Next Follow-up Date <span class="text-danger" id="nextFollowUpRequiredMark">*</span>
+    </label>
+    <input type="text" class="form-control flatpickr-modal" id="modal_next_follow_up_date" name="next_follow_up_date" placeholder="Select follow-up date" />
   </div>
 </div>

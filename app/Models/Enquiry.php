@@ -64,6 +64,11 @@ class Enquiry extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
+    public function followUps()
+    {
+        return $this->hasMany(EnquiryFollowUp::class)->latest('created_at');
+    }
+
     // Scopes
     public function scopeAssignedTo($query, $userId)
     {
