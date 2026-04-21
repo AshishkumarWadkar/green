@@ -216,6 +216,7 @@ class EnquiryManagementService
     {
         $this->ensureUserCanAccessEnquiry($authUser, $enquiry);
         $data = $this->validateEnquiryPayload($authUser, $payload);
+        $this->assertEnquiryStatusTransitionAllowed($enquiry, (string) $data['status']);
 
         $updateData = [
             'enquiry_date' => $data['enquiry_date'],
@@ -272,6 +273,8 @@ class EnquiryManagementService
         }
 
         $data = $validator->validated();
+        $this->assertEnquiryStatusTransitionAllowed($enquiry, (string) $data['status']);
+
         if ($data['status'] !== 'Pending') {
             $data['next_follow_up_date'] = null;
         }
@@ -314,6 +317,8 @@ class EnquiryManagementService
         if ($data['status'] !== 'Pending') {
             $data['next_follow_up_date'] = null;
         }
+
+        $this->assertEnquiryStatusTransitionAllowed($enquiry, (string) $data['status']);
 
         return DB::transaction(function () use ($authUser, $enquiry, $data) {
             EnquiryFollowUp::create([
@@ -378,6 +383,7 @@ class EnquiryManagementService
 
             $latestFollowUpId = $enquiry->followUps()->latest('created_at')->value('id');
             if ((int) $latestFollowUpId === (int) $followUp->id) {
+                $this->assertEnquiryStatusTransitionAllowed($enquiry, (string) $data['status']);
                 $enquiry->update([
                     'status' => $data['status'],
                     'follow_up_remark' => $data['remark'],
@@ -464,5 +470,19 @@ class EnquiryManagementService
             'next_follow_up_date.required_if' => 'Please select next follow-up date',
             'next_follow_up_date.after_or_equal' => 'Next follow-up date must be today or later, and not before enquiry date.',
         ];
+    }
+
+    /**
+     * Accepted enquiries cannot be cancelled; cancelled may be accepted again.
+     *
+     * @throws ValidationException
+     */
+    private function assertEnquiryStatusTransitionAllowed(Enquiry $enquiry, string $newStatus): void
+    {
+        if ($newStatus === 'Cancelled' && $enquiry->status === 'Accepted') {
+            throw ValidationException::withMessages([
+                'status' => ['An accepted enquiry cannot be cancelled.'],
+            ]);
+        }
     }
 }

@@ -6,7 +6,7 @@ AUTH APIS
 ========================================
 
 # 1) Login
-curl --location "$BASE_URL/api/mobile/auth/login" \
+curl --location "$BASE_URL/api/auth/login" \
 --header "Accept: application/json" \
 --header "Content-Type: application/json" \
 --data '{
@@ -16,43 +16,80 @@ curl --location "$BASE_URL/api/mobile/auth/login" \
 }'
 
 # 2) Me (current user profile)
-curl --location "$BASE_URL/api/mobile/auth/me" \
+curl --location "$BASE_URL/api/auth/me" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 3) Logout current token
-curl --location "$BASE_URL/api/mobile/auth/logout" \
+curl --location "$BASE_URL/api/auth/logout" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
 --request POST
 
 # 4) Logout all devices
-curl --location "$BASE_URL/api/mobile/auth/logout-all" \
+curl --location "$BASE_URL/api/auth/logout-all" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
 --request POST
+
+# Forgot password — lookup / create / status (no auth). outcome: submitted | pending | approved | declined | invalid_username
+curl --location "$BASE_URL/api/auth/forgot-password" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data '{
+  "username": "your_username",
+  "resubmit": false
+}'
+
+# Forgot password — resubmit after decline (no auth)
+curl --location "$BASE_URL/api/auth/forgot-password" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data '{
+  "username": "your_username",
+  "resubmit": true
+}'
+
+# Forgot password — set new password (no auth). Use reset_token from response when outcome is approved.
+curl --location "$BASE_URL/api/auth/forgot-password/reset" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data '{
+  "reset_token": "PASTE_TOKEN_FROM_APPROVED_LOOKUP",
+  "password": "NewSecurePassword1!",
+  "password_confirmation": "NewSecurePassword1!"
+}'
+
+========================================
+DASHBOARD APIS
+========================================
+
+# Dashboard counts (same figures as web home; requires view-dashboard; enquiry metrics are zero unless user has view-enquiries; Sales users are scoped to assigned enquiries)
+curl --location "$BASE_URL/api/dashboard/counts" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
 
 ========================================
 USER MANAGEMENT APIS
 ========================================
 
 # 5) List users
-curl --location "$BASE_URL/api/mobile/user-management/users?page=1&per_page=15&search=" \
+curl --location "$BASE_URL/api/user-management/users?page=1&per_page=15&search=" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 6) Get assignable roles
-curl --location "$BASE_URL/api/mobile/user-management/users/assignable-roles" \
+curl --location "$BASE_URL/api/user-management/users/assignable-roles" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 7) Show one user
-curl --location "$BASE_URL/api/mobile/user-management/users/1" \
+curl --location "$BASE_URL/api/user-management/users/1" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 8) Create user
-curl --location "$BASE_URL/api/mobile/user-management/users" \
+curl --location "$BASE_URL/api/user-management/users" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
 --header "Content-Type: application/json" \
@@ -66,7 +103,7 @@ curl --location "$BASE_URL/api/mobile/user-management/users" \
 }'
 
 # 9) Update user
-curl --location "$BASE_URL/api/mobile/user-management/users/1" \
+curl --location "$BASE_URL/api/user-management/users/1" \
 --request PUT \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
@@ -81,14 +118,31 @@ curl --location "$BASE_URL/api/mobile/user-management/users/1" \
 }'
 
 # 10) Toggle user status
-curl --location "$BASE_URL/api/mobile/user-management/users/1/toggle-status" \
+curl --location "$BASE_URL/api/user-management/users/1/toggle-status" \
 --request PATCH \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 11) Delete user
-curl --location "$BASE_URL/api/mobile/user-management/users/1" \
+curl --location "$BASE_URL/api/user-management/users/1" \
 --request DELETE \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# Password reset requests — list (requires manage-password-reset-requests; optional status=pending|approved|declined|completed)
+curl --location "$BASE_URL/api/user-management/password-reset-requests?page=1&per_page=15&status=pending" \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# Password reset requests — approve
+curl --location "$BASE_URL/api/user-management/password-reset-requests/1/approve" \
+--request PATCH \
+--header "Accept: application/json" \
+--header "Authorization: Bearer $TOKEN"
+
+# Password reset requests — decline
+curl --location "$BASE_URL/api/user-management/password-reset-requests/1/decline" \
+--request PATCH \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
@@ -97,17 +151,17 @@ ENQUIRY APIS
 ========================================
 
 # 12) List enquiries (with optional filters)
-curl --location "$BASE_URL/api/mobile/enquiries?page=1&per_page=15&date_from=&date_to=&source_id=&assigned_to=&lead_type=&location=&pincode=&enquiry_type=&finance_type=&customer_profession=&status=&view=all" \
+curl --location "$BASE_URL/api/enquiries?page=1&per_page=15&date_from=&date_to=&source_id=&assigned_to=&lead_type=&location=&pincode=&enquiry_type=&finance_type=&customer_profession=&status=&view=all" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 13) Filter options (all at once)
-curl --location "$BASE_URL/api/mobile/enquiries/filters" \
+curl --location "$BASE_URL/api/enquiries/filters" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 14) Filter options by type
-curl --location "$BASE_URL/api/mobile/enquiries/filters?type=sources" \
+curl --location "$BASE_URL/api/enquiries/filters?type=sources" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
@@ -116,22 +170,22 @@ curl --location "$BASE_URL/api/mobile/enquiries/filters?type=sources" \
 # enquiry_types, finance_types, customer_professions, statuses
 
 # 15) List pending follow-ups
-curl --location "$BASE_URL/api/mobile/enquiries/followups?page=1&per_page=15&scope=today&date_from=&date_to=&assigned_to=" \
+curl --location "$BASE_URL/api/enquiries/followups?page=1&per_page=15&scope=today&date_from=&date_to=&assigned_to=" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 16) List completed follow-ups
-curl --location "$BASE_URL/api/mobile/enquiries/followups/completed?page=1&per_page=15&date_from=&date_to=&assigned_to=" \
+curl --location "$BASE_URL/api/enquiries/followups/completed?page=1&per_page=15&date_from=&date_to=&assigned_to=" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 17) Show one follow-up
-curl --location "$BASE_URL/api/mobile/enquiries/followups/1" \
+curl --location "$BASE_URL/api/enquiries/followups/1" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 18) Complete enquiry follow-up
-curl --location "$BASE_URL/api/mobile/enquiries/1/followup-complete" \
+curl --location "$BASE_URL/api/enquiries/1/followup-complete" \
 --request PATCH \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
@@ -143,7 +197,7 @@ curl --location "$BASE_URL/api/mobile/enquiries/1/followup-complete" \
 }'
 
 # 19) Update follow-up
-curl --location "$BASE_URL/api/mobile/enquiries/followups/1" \
+curl --location "$BASE_URL/api/enquiries/followups/1" \
 --request PUT \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
@@ -155,12 +209,12 @@ curl --location "$BASE_URL/api/mobile/enquiries/followups/1" \
 }'
 
 # 20) Show one enquiry
-curl --location "$BASE_URL/api/mobile/enquiries/1" \
+curl --location "$BASE_URL/api/enquiries/1" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"
 
 # 21) Create enquiry
-curl --location "$BASE_URL/api/mobile/enquiries" \
+curl --location "$BASE_URL/api/enquiries" \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
 --header "Content-Type: application/json" \
@@ -188,7 +242,7 @@ curl --location "$BASE_URL/api/mobile/enquiries" \
 }'
 
 # 22) Update enquiry
-curl --location "$BASE_URL/api/mobile/enquiries/1" \
+curl --location "$BASE_URL/api/enquiries/1" \
 --request PUT \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
@@ -217,7 +271,7 @@ curl --location "$BASE_URL/api/mobile/enquiries/1" \
 }'
 
 # 23) Update enquiry status
-curl --location "$BASE_URL/api/mobile/enquiries/1/status" \
+curl --location "$BASE_URL/api/enquiries/1/status" \
 --request PATCH \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN" \
@@ -228,7 +282,7 @@ curl --location "$BASE_URL/api/mobile/enquiries/1/status" \
 }'
 
 # 24) Delete enquiry
-curl --location "$BASE_URL/api/mobile/enquiries/1" \
+curl --location "$BASE_URL/api/enquiries/1" \
 --request DELETE \
 --header "Accept: application/json" \
 --header "Authorization: Bearer $TOKEN"

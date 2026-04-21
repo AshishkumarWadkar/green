@@ -221,6 +221,11 @@ $(function () {
     $('#followupHistoryBody').html(
       '<tr><td colspan="7" class="text-center text-muted">No follow-up history available.</td></tr>'
     );
+    $('#modal_status option[value="Cancelled"]').prop('disabled', false);
+  }
+
+  function refreshModalCancelledOption() {
+    $('#modal_status option[value="Cancelled"]').prop('disabled', $('#modal_status').val() === 'Accepted');
   }
 
   function renderFollowupHistory(followUps) {
@@ -298,6 +303,7 @@ $(function () {
     $('#modal_assigned_to').val(data.assigned_to || '').trigger('change');
     $('#modal_lead_type').val(data.lead_type || '').trigger('change');
     $('#modal_status').val(data.status || 'Pending').trigger('change');
+    refreshModalCancelledOption();
     $('#modal_finance_type').val(data.finance_type || '').trigger('change');
     $('#modal_customer_profession').val(data.customer_profession || '').trigger('change');
   }
@@ -634,6 +640,7 @@ $(function () {
 
     $('#modal_status').on('change', function () {
       toggleNextFollowUpDateField();
+      refreshModalCancelledOption();
 
       if (!enquiryFormValidator) {
         return;
@@ -681,8 +688,33 @@ $(function () {
         return;
       }
 
-      enquiryFormValidator.validate().then(function (status) {
-        if (status === 'Valid') {
+      enquiryFormValidator.validate().then(function (fvStatus) {
+        if (fvStatus !== 'Valid') {
+          return;
+        }
+        var selectedStatus = $('#modal_status').val();
+        if (selectedStatus === 'Accepted' || selectedStatus === 'Cancelled') {
+          var isAccept = selectedStatus === 'Accepted';
+          Swal.fire({
+            title: isAccept ? 'Confirm this enquiry?' : 'Cancel this enquiry?',
+            text: isAccept
+              ? 'The enquiry will be marked as accepted.'
+              : 'The enquiry will be marked as cancelled.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, proceed',
+            cancelButtonText: 'No, go back',
+            customClass: {
+              confirmButton: 'btn btn-primary me-3',
+              cancelButton: 'btn btn-label-secondary'
+            },
+            buttonsStyling: false
+          }).then(function (result) {
+            if (result.isConfirmed || result.value) {
+              submitEnquiryForm();
+            }
+          });
+        } else {
           submitEnquiryForm();
         }
       });
@@ -766,32 +798,63 @@ $(function () {
       return;
     }
 
-    $.ajax({
-      type: 'PATCH',
-      url: `${baseUrl}enquiries/${enquiry_id}/status`,
-      data: { status: status, follow_up_remark: remark },
-      success: function () {
-        followUpActionModal.modal('hide');
-        dt_enquiries.draw();
-        Swal.fire({
-          icon: 'success',
-          title: 'Status Updated!',
-          text: 'Enquiry status has been updated to ' + status,
-          customClass: {
-            confirmButton: 'btn btn-success'
+    function submitStatusUpdate() {
+      $.ajax({
+        type: 'PATCH',
+        url: `${baseUrl}enquiries/${enquiry_id}/status`,
+        data: { status: status, follow_up_remark: remark },
+        success: function () {
+          followUpActionModal.modal('hide');
+          dt_enquiries.draw();
+          Swal.fire({
+            icon: 'success',
+            title: 'Status Updated!',
+            text: 'Enquiry status has been updated to ' + status,
+            customClass: {
+              confirmButton: 'btn btn-success'
+            }
+          });
+        },
+        error: function (err) {
+          var msg = err.responseJSON?.message || 'Something went wrong!';
+          if (err.responseJSON?.errors) {
+            msg = Object.values(err.responseJSON.errors).flat().join('\n');
           }
-        });
-      },
-      error: function (err) {
-        Swal.fire({
-          title: 'Error!',
-          text: err.responseJSON?.message || 'Something went wrong!',
-          icon: 'error',
-          customClass: {
-            confirmButton: 'btn btn-success'
-          }
-        });
-      }
-    });
+          Swal.fire({
+            title: 'Error!',
+            text: msg,
+            icon: 'error',
+            customClass: {
+              confirmButton: 'btn btn-success'
+            }
+          });
+        }
+      });
+    }
+
+    if (status === 'Accepted' || status === 'Cancelled') {
+      var isAccept = status === 'Accepted';
+      Swal.fire({
+        title: isAccept ? 'Confirm this enquiry?' : 'Cancel this enquiry?',
+        text: isAccept
+          ? 'The enquiry will be marked as accepted.'
+          : 'The enquiry will be marked as cancelled.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, proceed',
+        cancelButtonText: 'No, go back',
+        customClass: {
+          confirmButton: 'btn btn-primary me-3',
+          cancelButton: 'btn btn-label-secondary'
+        },
+        buttonsStyling: false
+      }).then(function (result) {
+        if (result.isConfirmed || result.value) {
+          submitStatusUpdate();
+        }
+      });
+    } else {
+      submitStatusUpdate();
+    }
   });
 });

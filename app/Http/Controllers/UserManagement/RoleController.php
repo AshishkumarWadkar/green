@@ -40,6 +40,8 @@ class RoleController extends Controller
                 return 'follow-ups';
             } elseif (str_contains($name, 'report')) {
                 return 'reports';
+            } elseif (str_contains($name, 'password-reset')) {
+                return 'user-management';
             } elseif (str_contains($name, 'user') || str_contains($name, 'role')) {
                 return 'user-management';
             } else {

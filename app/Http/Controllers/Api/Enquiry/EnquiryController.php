@@ -41,7 +41,7 @@ class EnquiryController extends Controller
             ], 403);
         }
 
-        $enquiry->load(['enquirySource', 'assignedUser', 'createdBy']);
+        $enquiry->load(['enquirySource', 'assignedUser', 'createdBy', 'followUps.createdBy']);
 
         return response()->json([
             'data' => new EnquiryResource($enquiry),
@@ -139,6 +139,7 @@ class EnquiryController extends Controller
                     'id' => $followUp->id,
                     'enquiry_id' => $followUp->enquiry_id,
                     'customer_name' => optional($followUp->enquiry)->customer_name,
+                    'enquiry_status' => optional($followUp->enquiry)->status,
                     'status' => $followUp->new_status,
                     'remark' => $followUp->remark,
                     'next_follow_up_date' => optional($followUp->next_follow_up_date)->format('Y-m-d'),

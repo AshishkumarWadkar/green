@@ -20,6 +20,7 @@ class RoleSeeder extends Seeder
             'edit-users',
             'delete-users',
             'manage-roles',
+            'manage-password-reset-requests',
         ];
 
         $enquiryManagement = [

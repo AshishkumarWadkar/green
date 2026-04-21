@@ -18,8 +18,32 @@
       "url": "user-management/users",
       "name": "Users",
       "icon": "menu-icon tf-icons ti ti-users",
-      "slug": "user-management.users",
-      "permission": "view-users"
+      "slug": [
+        "user-management.users.index",
+        "user-management.roles.index",
+        "user-management.password-reset-requests.index"
+      ],
+      "permission": "view-users",
+      "submenu": [
+        {
+          "url": "user-management/users",
+          "name": "All Users",
+          "slug": "user-management.users.index",
+          "permission": "view-users"
+        },
+        {
+          "url": "user-management/password-reset-requests",
+          "name": "Password Reset Requests",
+          "slug": "user-management.password-reset-requests.index",
+          "permission": "manage-password-reset-requests"
+        },
+        {
+          "url": "user-management/roles",
+          "name": "Roles & Permissions",
+          "slug": "user-management.roles.index",
+          "permission": "manage-roles"
+        }
+      ]
     }
   ]
 }

@@ -211,6 +211,10 @@ $customizerHidden = 'customizer-hide';
         <p>Enter your credentials to access your dashboard.</p>
       </div>
 
+      @if (session('status'))
+        <div class="alert alert-success mb-4" role="alert">{{ session('status') }}</div>
+      @endif
+
       <form id="formAuthentication" class="mb-4" action="{{ route('login.post') }}" method="POST">
         @csrf
         <div class="mb-6">
@@ -224,7 +228,7 @@ $customizerHidden = 'customizer-hide';
         <div class="mb-6 form-password-toggle">
           <div class="d-flex justify-content-between">
             <label class="form-label" for="password">Password</label>
-            <a href="javascript:void(0);" class="text-primary small">
+            <a href="{{ route('forgot-password') }}" class="text-primary small">
               Forgot password?
             </a>
           </div>

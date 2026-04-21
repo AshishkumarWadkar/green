@@ -206,6 +206,8 @@ $(function () {
     $('#followup_enquiry_id').val(enquiryId);
     $('#followup_customer_name').val(customerName || '');
     $('#followup_status').val('Pending');
+    completeFollowupForm.data('enquiryStatus', '');
+    $('#followup_status option[value="Cancelled"]').prop('disabled', false);
     $('#followup_remark_input').val('');
     followupDatePicker.clear();
     toggleNextDateRequirement();
@@ -224,7 +226,9 @@ $(function () {
       $('#followup_record_id').val(data.id);
       $('#followup_enquiry_id').val(data.enquiry_id);
       $('#followup_customer_name').val(data.customer_name || '');
+      completeFollowupForm.data('enquiryStatus', data.enquiry_status || '');
       $('#followup_status').val(data.status || 'Pending');
+      refreshFollowupCancelOption();
       $('#followup_remark_input').val(data.remark || '');
       if (data.next_follow_up_date) {
         followupDatePicker.setDate(data.next_follow_up_date, true, 'Y-m-d');
@@ -243,8 +247,16 @@ $(function () {
     });
   });
 
+  function refreshFollowupCancelOption() {
+    const enquiryStatus = completeFollowupForm.data('enquiryStatus') || '';
+    const disabled =
+      enquiryStatus === 'Accepted' && $('#followup_status').val() === 'Accepted';
+    $('#followup_status option[value="Cancelled"]').prop('disabled', disabled);
+  }
+
   $('#followup_status').on('change', function () {
     toggleNextDateRequirement();
+    refreshFollowupCancelOption();
   });
 
   completeFollowupForm.on('submit', function (e) {
@@ -273,39 +285,66 @@ $(function () {
       return;
     }
 
-    $.ajax({
-      type: followupRecordId ? 'PUT' : 'PATCH',
-      url: followupRecordId ? `${baseUrl}enquiries/followups/${followupRecordId}` : `${baseUrl}enquiries/${enquiryId}/followup-complete`,
-      data: {
-        status: status,
-        remark: remark,
-        next_follow_up_date: nextDate
-      },
-      success: function (response) {
-        completeFollowupModal.modal('hide');
-        if (dt_followups) {
-          dt_followups.draw();
+    function submitFollowUpSave() {
+      $.ajax({
+        type: followupRecordId ? 'PUT' : 'PATCH',
+        url: followupRecordId ? `${baseUrl}enquiries/followups/${followupRecordId}` : `${baseUrl}enquiries/${enquiryId}/followup-complete`,
+        data: {
+          status: status,
+          remark: remark,
+          next_follow_up_date: nextDate
+        },
+        success: function (response) {
+          completeFollowupModal.modal('hide');
+          if (dt_followups) {
+            dt_followups.draw();
+          }
+          if (dt_completed_followups) {
+            dt_completed_followups.draw();
+          }
+          Swal.fire({
+            icon: 'success',
+            title: 'Updated',
+            text: response.message || 'Follow-up saved successfully.'
+          });
+        },
+        error: function (err) {
+          let errorMsg = err.responseJSON?.message || 'Something went wrong!';
+          if (err.responseJSON?.errors) {
+            errorMsg = Object.values(err.responseJSON.errors).flat().join('\n');
+          }
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: errorMsg
+          });
         }
-        if (dt_completed_followups) {
-          dt_completed_followups.draw();
+      });
+    }
+
+    if (status === 'Accepted' || status === 'Cancelled') {
+      const isAccept = status === 'Accepted';
+      Swal.fire({
+        title: isAccept ? 'Confirm this enquiry?' : 'Cancel this enquiry?',
+        text: isAccept
+          ? 'The enquiry will be marked as accepted.'
+          : 'The enquiry will be marked as cancelled.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, proceed',
+        cancelButtonText: 'No, go back',
+        customClass: {
+          confirmButton: 'btn btn-primary me-3',
+          cancelButton: 'btn btn-label-secondary'
+        },
+        buttonsStyling: false
+      }).then(function (result) {
+        if (result.isConfirmed || result.value) {
+          submitFollowUpSave();
         }
-        Swal.fire({
-          icon: 'success',
-          title: 'Updated',
-          text: response.message || 'Follow-up saved successfully.'
-        });
-      },
-      error: function (err) {
-        let errorMsg = err.responseJSON?.message || 'Something went wrong!';
-        if (err.responseJSON?.errors) {
-          errorMsg = Object.values(err.responseJSON.errors).flat().join('\n');
-        }
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: errorMsg
-        });
-      }
-    });
+      });
+    } else {
+      submitFollowUpSave();
+    }
   });
 });

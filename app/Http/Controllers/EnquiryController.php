@@ -168,6 +168,7 @@ class EnquiryController extends Controller
                 'id' => $followUp->id,
                 'enquiry_id' => $followUp->enquiry_id,
                 'customer_name' => optional($followUp->enquiry)->customer_name,
+                'enquiry_status' => optional($followUp->enquiry)->status,
                 'status' => $followUp->new_status,
                 'remark' => $followUp->remark,
                 'next_follow_up_date' => optional($followUp->next_follow_up_date)->format('Y-m-d'),
@@ -304,6 +305,8 @@ class EnquiryController extends Controller
                 if ($row->status === 'Pending' && $canEdit) {
                     $statusBtns = '<button class="btn btn-sm btn-icon update-status btn-text-success rounded-pill waves-effect" data-id="' . $row->id . '" data-status="Accepted" title="Accept"><i class="ti ti-check"></i></button>';
                     $statusBtns .= '<button class="btn btn-sm btn-icon update-status btn-text-danger rounded-pill waves-effect" data-id="' . $row->id . '" data-status="Cancelled" title="Cancel"><i class="ti ti-x"></i></button>';
+                } elseif ($row->status === 'Cancelled' && $canEdit) {
+                    $statusBtns = '<button class="btn btn-sm btn-icon update-status btn-text-success rounded-pill waves-effect" data-id="' . $row->id . '" data-status="Accepted" title="Accept"><i class="ti ti-check"></i></button>';
                 }
 
                 return '<div class="d-flex align-items-center gap-50">' . $viewBtn . $statusBtns . $editBtn . $deleteBtn . '</div>';

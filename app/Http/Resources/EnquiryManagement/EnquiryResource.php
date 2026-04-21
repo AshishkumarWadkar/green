@@ -47,6 +47,7 @@ class EnquiryResource extends JsonResource
                 'id' => $this->createdBy->id,
                 'name' => $this->createdBy->name,
             ] : null,
+            'follow_ups' => EnquiryFollowUpResource::collection($this->whenLoaded('followUps')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -55,4 +55,9 @@ class User extends Authenticatable
   {
     return $this->hasAnyRole(['CEO', 'MD', 'Sales Manager']);
   }
+
+  public function passwordResetRequest()
+  {
+    return $this->hasOne(PasswordResetRequest::class);
+  }
 }

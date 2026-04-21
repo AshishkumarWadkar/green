@@ -8,12 +8,19 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserManagement\UserController;
 use App\Http\Controllers\UserManagement\RoleController;
 use App\Http\Controllers\EnquiryController;
+use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\UserManagement\PasswordResetRequestController;
 
 // Public routes (no authentication required)
 Route::middleware('guest')->group(function () {
   // Authentication routes
   Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
   Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+
+  Route::get('/forgot-password', [ForgotPasswordController::class, 'showForm'])->name('forgot-password');
+  Route::post('/forgot-password', [ForgotPasswordController::class, 'lookupUsername'])->name('forgot-password.lookup');
+  Route::get('/forgot-password/reset', [ForgotPasswordController::class, 'showResetForm'])->name('password-reset.show');
+  Route::post('/forgot-password/reset', [ForgotPasswordController::class, 'updatePassword'])->name('password-reset.update');
   
   // Redirect old login URLs for backward compatibility
   Route::get('/auth/login-basic', function () {
@@ -62,6 +69,11 @@ Route::middleware('auth')->group(function () {
     Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
     Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+
+    Route::get('/password-reset-requests', [PasswordResetRequestController::class, 'index'])->name('password-reset-requests.index');
+    Route::get('/password-reset-requests/data', [PasswordResetRequestController::class, 'getData'])->name('password-reset-requests.data');
+    Route::patch('/password-reset-requests/{id}/approve', [PasswordResetRequestController::class, 'approve'])->name('password-reset-requests.approve');
+    Route::patch('/password-reset-requests/{id}/decline', [PasswordResetRequestController::class, 'decline'])->name('password-reset-requests.decline');
     
     // Roles
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');

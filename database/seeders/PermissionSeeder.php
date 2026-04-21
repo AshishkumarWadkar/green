@@ -28,5 +28,7 @@ class PermissionSeeder extends Seeder
         Permission::firstOrCreate(['name' => 'edit-users', 'guard_name' => 'web']);
         Permission::firstOrCreate(['name' => 'delete-users', 'guard_name' => 'web']);
         Permission::firstOrCreate(['name' => 'manage-roles', 'guard_name' => 'web']);
+
+        Permission::firstOrCreate(['name' => 'manage-password-reset-requests', 'guard_name' => 'web']);
     }
 }
